@@ -15,9 +15,34 @@ globalThis.NecroThrallHelper.purgeGraphics = (sceneId, { regionIds = [], drawing
         game.socket.emit("module.necromancer-thrall-helper", { action: "purgeMapGraphics", sceneId, regionIds, drawingIds, templateIds });
     }
 };
+globalThis.NecroThrallHelper.spawnOriginMarker = async (sceneId, drawingData, durationMs = 20000) => {
+    if (game.user.isGM) {
+        const scene = game.scenes.get(sceneId);
+        if (!scene) return;
+        const payload = foundry.utils.mergeObject(drawingData, { author: game.user.id });
+        const [marker] = await scene.createEmbeddedDocuments("Drawing", [payload]).catch(() => []);
+        if (marker) {
+            setTimeout(() => {
+                if (scene.drawings.has(marker.id)) {
+                    scene.deleteEmbeddedDocuments("Drawing", [marker.id]).catch(() => {});
+                }
+            }, durationMs);
+        }
+    } else {
+        game.socket.emit("module.necromancer-thrall-helper", {
+            action: "spawnOriginMarker",
+            sceneId,
+            drawingData,
+            durationMs
+        });
+    }
+};
 Hooks.once("ready", async () => {
     game.socket.on("module.necromancer-thrall-helper", async (data) => {
         if (!game.user.isGM) return; 
+        if (data.action === "spawnOriginMarker") {
+            await globalThis.NecroThrallHelper.spawnOriginMarker(data.sceneId, data.drawingData, data.durationMs);
+        }
         if (data.action === "deleteBloodPool") {
             const scene = game.scenes.get(data.sceneId);
             if (!scene) return;
@@ -2357,9 +2382,9 @@ globalThis.NecroThrallHelper.checkNightmareHaunt = async (nightmareTokenDoc, spe
 };
 
 Hooks.on("updateToken", async (tokenDoc, changes, options, userId) => {
-    if (game.user.id !== userId || !("x" in changes || "y" in changes)) return;
+    if (!("x" in changes || "y" in changes)) return;
 
-    const scene = canvas.scene;
+    const scene = tokenDoc.parent || canvas.scene;
     if (!scene) return;
 
     const destX = changes.x ?? tokenDoc.x;
@@ -2369,6 +2394,16 @@ Hooks.on("updateToken", async (tokenDoc, changes, options, userId) => {
     const tCenterX = destX + (tokenDoc.width * gridSize) / 2;
     const tCenterY = destY + (tokenDoc.height * gridSize) / 2;
 
+    if (game.user.isGM && tokenDoc.getFlag("necromancer-thrall-helper", "isHordeAnchor")) {
+        const pixels = ((tokenDoc.getFlag("necromancer-thrall-helper", "hordeRadius") || 10) / gridDist) * gridSize;
+        const region = scene.regions.find(r => r.getFlag("necromancer-thrall-helper", "anchorId") === tokenDoc.id);
+        const drawing = scene.drawings.find(d => d.getFlag("necromancer-thrall-helper", "anchorId") === tokenDoc.id);
+        
+        if (region) await region.update({ shapes: [{ type: "ellipse", hole: false, x: tCenterX, y: tCenterY, radiusX: pixels, radiusY: pixels, rotation: 0 }] });
+        if (drawing) await drawing.update({ x: tCenterX - pixels, y: tCenterY - pixels, shape: { type: "e", width: pixels * 2, height: pixels * 2 } });
+    }
+
+    if (game.user.id !== userId) return;
     if (tokenDoc.getFlag("necromancer-thrall-helper", "isRecurringNightmare")) {
         globalThis.NecroThrallHelper?.checkNightmareHaunt(tokenDoc, null, { x: destX, y: destY });
     }
@@ -2410,14 +2445,7 @@ Hooks.on("updateToken", async (tokenDoc, changes, options, userId) => {
         }
     }
 
-    if (tokenDoc.getFlag("necromancer-thrall-helper", "isHordeAnchor")) {
-        const pixels = ((tokenDoc.getFlag("necromancer-thrall-helper", "hordeRadius") || 10) / gridDist) * gridSize;
-        const region = scene.regions.find(r => r.getFlag("necromancer-thrall-helper", "anchorId") === tokenDoc.id);
-        const drawing = scene.drawings.find(d => d.getFlag("necromancer-thrall-helper", "anchorId") === tokenDoc.id);
-        
-        if (region) await region.update({ shapes: [{ type: "ellipse", hole: false, x: tCenterX, y: tCenterY, radiusX: pixels, radiusY: pixels, rotation: 0 }] });
-        if (drawing) await drawing.update({ x: tCenterX - pixels, y: tCenterY - pixels, shape: { type: "e", width: pixels * 2, height: pixels * 2 } });
-    }
+    
 });
 
 Hooks.on("preCreateToken", (tokenDoc, data, options, userId) => {
@@ -5732,16 +5760,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                                         await executeDelete(tokenDoc.id);
                                         
-                                        const [marker] = await canvas.scene.createEmbeddedDocuments("Drawing", [{
-                                            author: game.user.id,
+                                        await globalThis.NecroThrallHelper.spawnOriginMarker(canvas.scene.id, {
                                             shape: { type: "e", width: tWidth, height: tHeight },
                                             x: originX, y: originY,
                                             fillType: 1, fillColor: "#990000", fillAlpha: 0.5,
                                             strokeWidth: 2, strokeColor: "#ffffff",
                                             text: "GREATER DIFFICULT TERRAIN\n(Flesh Tsunami)", fontSize: 16, textColor: "#ffffff"
-                                        }]);
-
-                                        setTimeout(() => { if (canvas.scene && canvas.scene.drawings.has(marker.id)) globalThis.NecroThrallHelper.purgeGraphics(canvas.scene.id, { drawingIds: [marker.id] }); }, 20000);
+                                        }, 20000);
                                         
                                         await tsunamiSpell.toMessage(e);
                                         ui.notifications.info("Draw your 60-foot cone starting from the marked origin point.");
@@ -7203,8 +7228,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                             hazardDuration: null,
                                             originMessageId: null
                                         };
-                                        const [marker] = await canvas.scene.createEmbeddedDocuments("Drawing", [{
-                                            author: game.user.id,
+                                        await globalThis.NecroThrallHelper.spawnOriginMarker(canvas.scene.id, {
                                             shape: { type: "e", width: tWidth, height: tHeight },
                                             x: originX,
                                             y: originY,
@@ -7216,10 +7240,6 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                             text: "SPEAR\nORIGIN",
                                             fontSize: 20,
                                             textColor: "#ffffff"
-                                        }]);
-
-                                        setTimeout(() => {
-                                            if (canvas.scene && canvas.scene.drawings.has(marker.id)) globalThis.NecroThrallHelper.purgeGraphics(canvas.scene.id, { drawingIds: [marker.id] });
                                         }, 20000);
 
                                         await spearSpell.toMessage(e);
@@ -7463,8 +7483,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                             originMessageId: null
                                         };
                                     
-                                        const [marker] = await canvas.scene.createEmbeddedDocuments("Drawing", [{
-                                            author: game.user.id,
+                                        await globalThis.NecroThrallHelper.spawnOriginMarker(canvas.scene.id, {
                                             shape: { type: "e", width: tWidth, height: tHeight },
                                             x: originX,
                                             y: originY,
@@ -7476,12 +7495,6 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                             text: "Bomb",
                                             fontSize: 24,
                                             textColor: "#ffffff"
-                                        }]);
-                                    
-                                        setTimeout(async () => {
-                                            if (canvas.scene && canvas.scene.drawings.has(marker.id)) {
-                                                await canvas.scene.deleteEmbeddedDocuments("Drawing", [marker.id]);
-                                            }
                                         }, 20000);
                                     
                                         await bombSpell.toMessage(e);
@@ -7821,8 +7834,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                             originMessageId: null
                                         };
                                         
-                                        const [marker] = await canvas.scene.createEmbeddedDocuments("Drawing", [{
-                                            author: game.user.id,
+                                        await globalThis.NecroThrallHelper.spawnOriginMarker(canvas.scene.id, {
                                             shape: { type: "e", width: tWidth, height: tHeight },
                                             x: originX,
                                             y: originY,
@@ -7834,10 +7846,6 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                             text: "BLAST\nORIGIN",
                                             fontSize: 20,
                                             textColor: "#ffffff"
-                                        }]);
-
-                                        setTimeout(() => {
-                                            if (canvas.scene && canvas.scene.drawings.has(marker.id)) globalThis.NecroThrallHelper.purgeGraphics(canvas.scene.id, { drawingIds: [marker.id] });
                                         }, 20000);
                                         
                                         await barrageSpell.toMessage(e);
