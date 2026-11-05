@@ -53,6 +53,49 @@ export function setupHooks() {
     Hooks.on("hoverToken", syncHover);
 }
 
+const FALLBACK_IMG = "systems/pf2e/icons/default-icons/npc.svg";
+const MEDIA_EXT = /\.(webp|png|jpe?g|gif|avif|svg|webm|mp4|m4v)$/i;
+const lastWildcardPick = new Map();
+
+/** True if the path is a Foundry-style wildcard pattern, e.g. `art/thrall-*.webp`. */
+export function isWildcardPath(path) {
+    return typeof path === "string" && path.includes("*");
+}
+
+/**
+ * List files matching a wildcard pattern (same browse call Foundry uses for a
+ * prototype token's "Randomize Wildcard Images").
+ */
+export async function listWildcardMatches(pattern) {
+    if (!isWildcardPath(pattern)) return [];
+    const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
+    try {
+        const result = await FP.browse("data", pattern, { wildcard: true });
+        return (result?.files ?? []).filter(f => MEDIA_EXT.test(f));
+    } catch (err) {
+        console.warn(`Necromancer Thrall Helper | Wildcard lookup failed for "${pattern}":`, err);
+        return [];
+    }
+}
+
+/**
+ * Resolve an image path to a concrete file. Plain paths pass through unchanged;
+ * wildcard paths pick a random match, avoiding an immediate repeat of the last pick.
+ */
+export async function resolveImagePath(path) {
+    if (!isWildcardPath(path)) return path;
+    const matches = await listWildcardMatches(path);
+    if (matches.length === 0) {
+        ui.notifications.warn(`No images match "${path}". Using the default thrall icon.`);
+        return FALLBACK_IMG;
+    }
+    const last = lastWildcardPick.get(path);
+    const pool = matches.length > 1 ? matches.filter(m => m !== last) : matches;
+    const pick = pool[Math.floor(Math.random() * pool.length)];
+    lastWildcardPick.set(path, pick);
+    return pick;
+}
+
 const STANDARD_ADJECTIVES = [
     "Angry", "Soggy", "Vengeful", "Festering", "Hollow", 
     "Shivering", "Wrinkled", "Spiteful", "Damp", "Putrid", 
@@ -228,6 +271,15 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
         if (tokenData.ring && tokenData.ring.subject) {
             tokenData.ring.subject.scale = imgScale;
         }
+    }
+}
+// --- WILDCARD IMAGES: resolve `thrall-*.webp` to one concrete file per spawn ---
+const wildcardSrc = tokenData.texture?.src;
+if (isWildcardPath(wildcardSrc)) {
+    const resolved = await resolveImagePath(wildcardSrc);
+    tokenData.texture.src = resolved;
+    if (tokenData.ring?.subject?.texture === wildcardSrc) {
+        tokenData.ring.subject.texture = resolved;
     }
 }
 // --- BONE FASCINATION: NIMBLE THRALLS ---

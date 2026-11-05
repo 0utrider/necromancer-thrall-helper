@@ -1,4 +1,4 @@
-import { prepareThrallPayload, getThrallPresets } from "../system/thrall-manager.js";
+import { prepareThrallPayload, getThrallPresets, resolveImagePath } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 
@@ -521,6 +521,30 @@ Hooks.once("ready", async () => {
     }, 999);
 });
 
+
+const THRALL_DMG_COLORS = { spirit: '#0ea5e9', void: '#7e22ce', vitality: '#b58900' };
+
+export function actorHasSpiritFascination(actor) {
+    return actor?.items.some(i => i.slug === "spirit" || i.name === "Spirit" || i.name.includes("Spirit Fascination"))
+        || actor?.flags?.pf2e?.rulesSelections?.grimFascination === "spirit"
+        || actor?.flags?.pf2e?.rulesSelections?.widespreadFascination === "spirit"
+        || false;
+}
+
+export function actorHasMasteryOfLifeAndDeath(actor) {
+    return actor?.items.some(i => i.name === "Mastery of Life and Death" || i.slug === "mastery-of-life-and-death") || false;
+}
+
+/**
+ * Thrall Enhancement (spirit) lets a thrall Strike deal void damage; Mastery of Life and
+ * Death lets the necromancer swap void for vitality on an ability they use (Command a Thrall).
+ * Gated by the world setting so a GM can turn it off.
+ */
+export function canThrallDealVitality(actor) {
+    return game.settings.get("necromancer-thrall-helper", "allowThrallVitality")
+        && actorHasSpiritFascination(actor)
+        && actorHasMasteryOfLifeAndDeath(actor);
+}
 
 export function getFascinations(actor) {
     if (!actor) return [];
@@ -2842,7 +2866,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             const spellRank = Math.ceil((actor?.level || 1) / 2);
             tendrilCount = 3 + Math.floor(Math.max(0, spellRank - 3) / 3);
         }
-        const hasSpiritFascination = actor?.items.some(i => i.slug === "spirit" || i.name === "Spirit" || i.name.includes("Spirit Fascination")) || (actor?.flags?.pf2e?.rulesSelections?.grimFascination === "spirit") || (actor?.flags?.pf2e?.rulesSelections?.widespreadFascination === "spirit") || false;
+        const hasSpiritFascination = actorHasSpiritFascination(actor);
         const hasBoneBurst = actor?.items.some(i => ["spell", "feat", "action"].includes(i.type) && (i.name.toLowerCase().includes("bone burst") || (i.system?.slug && i.system.slug.includes("bone-burst")))) || false;
         const hasCollateral = actor?.items.some(i => ["spell", "feat", "action"].includes(i.type) && (i.name.toLowerCase().includes("collateral reinforcement") || (i.system?.slug && i.system.slug.includes("collateral-reinforcement")))) || false;
         const hasReclaimPower = actor?.items.some(i => ["spell", "feat", "action"].includes(i.type) && (i.name.toLowerCase().includes("reclaim power") || (i.system?.slug && i.system.slug.includes("reclaim-power")))) || false;
@@ -2885,6 +2909,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             hasBindHeroicSpirit: hasBindHeroicSpirit,
             hasRecurringNightmare: hasRecurringNightmare,
             hasSpiritFascination: hasSpiritFascination,
+            hasThrallVitality: canThrallDealVitality(actor),
             canSustainNightmare: hasRecurringNightmare && nightmareDestroyed && !activeNightmare,
             canConjureNightmare: hasRecurringNightmare && !activeNightmare && !nightmareDestroyed,
             hasSkeletalLancers: hasSkeletalLancers,
@@ -3128,17 +3153,18 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
 
             // --- CUSTOM VISUALS HELPER ---
-        const applyCustomVisuals = (payload, actor, typePrefix) => {
+        const applyCustomVisuals = async (payload, actor, typePrefix) => {
             const img = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Img`);
             const useRing = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Ring`);
             const scale = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Scale`);
 
             if (img) {
+                const resolvedImg = await resolveImagePath(img);
                 payload.texture = payload.texture || {};
-                payload.texture.src = img;
+                payload.texture.src = resolvedImg;
                 if (payload.ring) {
                     payload.ring.subject = payload.ring.subject || {};
-                    payload.ring.subject.texture = img;
+                    payload.ring.subject.texture = resolvedImg;
                 }
             }
             if (useRing !== undefined) {
@@ -3220,9 +3246,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
                         targetBtn.classList.add('active');
                         
-                        let activeBg = '#555'; 
-                        if (savedType === 'spirit') activeBg = '#0ea5e9'; 
-                        if (savedType === 'void') activeBg = '#7e22ce'; 
+                        const activeBg = THRALL_DMG_COLORS[savedType] ?? '#555';
                         
                         targetBtn.style.background = activeBg;
                         targetBtn.style.color = '#fff';
@@ -3249,9 +3273,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     });
                     
                     
-                    let activeBg = '#555'; 
-                    if (type === 'spirit') activeBg = '#0ea5e9'; 
-                    if (type === 'void') activeBg = '#7e22ce'; 
+                    const activeBg = THRALL_DMG_COLORS[type] ?? '#555';
                     
                     btn.classList.add('active');
                     btn.style.background = activeBg;
@@ -3298,7 +3320,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         <div class="summon-cfg-group" data-target="${key}" style="display: ${key === 'thrall' ? 'block' : 'none'}; margin-top: 10px;">
                             <div class="form-group" style="display: flex; gap: 5px; margin-bottom: 15px; align-items: center;">
                                 <label style="flex: 1;">Image:</label>
-                                <input type="text" id="${key}-img-path" value="${c.img}" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
+                                <input type="text" id="${key}-img-path" value="${c.img}" placeholder="path/to/art.webp or wildcard: path/thrall-*.webp" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
                                 <button type="button" class="img-picker-btn" data-target="${key}-img-path" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
                             </div>
                             <div class="form-group" style="display: flex; justify-content: space-between; margin-bottom: 5px; align-items: center;">
@@ -3484,7 +3506,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         elevation: actor?.getActiveTokens()[0]?.document?.elevation || 0,
                         delta: { ownership: { [game.user.id]: 3 } }
                     });
-                    applyCustomVisuals(finalPayload, actor, "lancer");
+                    await applyCustomVisuals(finalPayload, actor, "lancer");
 
                     currentSpawnIndex++;
                     await executeSpawn(finalPayload).catch(err => console.error(err));
@@ -3618,7 +3640,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         elevation: actor?.getActiveTokens()[0]?.document?.elevation || 0,
                         delta: { ownership: { [game.user.id]: 3 } }
                     });
-                    applyCustomVisuals(finalPayload, actor, "nightmare");
+                    await applyCustomVisuals(finalPayload, actor, "nightmare");
 
                     const spawned = await executeSpawn(finalPayload);
                     const createdTokenId = spawned?.[0]?.id || spawned?.[0]?._id;
@@ -3802,7 +3824,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 });
 
                 // --- OVERRIDE WITH CUSTOM SHED CORPSE VISUALS ---
-                applyCustomVisuals(finalPayload, actor, "shed");
+                await applyCustomVisuals(finalPayload, actor, "shed");
 
                 currentSpawn++;
                 ui.notifications.info(`Spawn request ${currentSpawn} queued...`);
@@ -3946,7 +3968,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         payload.name = "Living Graveyard"; 
                         payload.delta = { ownership: { [game.user.id]: 3 } };
                         payload.flags = { "necromancer-thrall-helper": { masterId: actor.id, isLivingGraveyard: true } };
-                        payload = applyCustomVisuals(payload, actor, "graveyard");
+                        payload = await applyCustomVisuals(payload, actor, "graveyard");
                         
                         const spawned = await executeSpawn(payload);
                         const spawnedId = spawned?.[0]?.id || spawned?.[0]?._id;
@@ -5036,6 +5058,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         damageType = this.spiritStates[tokenId];
                     }
                     
+                    if (damageType === "vitality" && !canThrallDealVitality(actor)) damageType = "bludgeoning";
                     if (isNightmare) damageType = "void";
                     if (isLancer) damageType = "piercing";
 
@@ -8394,7 +8417,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             system: { attributes: { hp: { value: totalHP, max: totalHP } } }
                         }
                     });
-                    applyCustomVisuals(finalPayload, actor, "conglom");
+                    await applyCustomVisuals(finalPayload, actor, "conglom");
 
                     executeSpawn(finalPayload).then(() => {
                         ChatMessage.create({
@@ -8568,7 +8591,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         elevation: actor?.getActiveTokens()[0]?.document?.elevation || 0,
                         delta: { ownership: { [game.user.id]: 3 } }
                     });
-                    applyCustomVisuals(finalPayload, actor, "tendril");
+                    await applyCustomVisuals(finalPayload, actor, "tendril");
 
                     currentSpawnIndex++;
                     executeSpawn(finalPayload).catch(err => console.error(err));

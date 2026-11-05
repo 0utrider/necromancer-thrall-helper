@@ -11,9 +11,10 @@
         {{#if presets.length}}
             {{#each presets}}
                 <div class="portfolio-row" data-id="{{this.id}}">
-                    <img src="{{this.img}}" alt="{{this.name}}" class="portfolio-portrait">
+                    <img src="{{this.displayImg}}" alt="{{this.name}}" class="portfolio-portrait">
                     <div class="portfolio-details">
                         <span class="portfolio-name">{{this.name}}</span>
+                        {{#if this.isWildcard}}<span class="portfolio-wildcard-tag" title="{{this.img}}"><i class="fas fa-shuffle"></i> {{this.matchCount}} random images</span>{{/if}}
                     </div>
                     <div class="portfolio-actions">
                         <button type="button" class="action-btn edit-preset-btn" title="Edit Thrall">
@@ -38,9 +39,11 @@
             <input type="text" id="new-thrall-name" placeholder="Thrall Name">
         </div>
         <div class="form-group flexrow">
-            <input type="text" id="new-thrall-img" placeholder="Image Path">
+            <input type="text" id="new-thrall-img" placeholder="Image Path (or wildcard: path/thrall-*.webp)">
             <button type="button" class="file-picker-btn" title="Browse Files"><i class="fas fa-file-import"></i></button>
+            <button type="button" id="wildcard-btn" class="wildcard-btn" title="Make wildcard: replace the number in the filename with * (thrall-01.webp becomes thrall-*.webp)"><i class="fas fa-shuffle"></i></button>
         </div>
+        <small id="wildcard-info" class="hint"></small>
 
         <div class="form-group adjective-section">
             <div class="adjective-header">
