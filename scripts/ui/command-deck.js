@@ -535,11 +535,6 @@ export function actorHasMasteryOfLifeAndDeath(actor) {
     return actor?.items.some(i => i.name === "Mastery of Life and Death" || i.slug === "mastery-of-life-and-death") || false;
 }
 
-/**
- * Thrall Enhancement (spirit) lets a thrall Strike deal void damage; Mastery of Life and
- * Death lets the necromancer swap void for vitality on an ability they use (Command a Thrall).
- * Gated by the world setting so a GM can turn it off.
- */
 export function canThrallDealVitality(actor) {
     return game.settings.get("necromancer-thrall-helper", "allowThrallVitality")
         && actorHasSpiritFascination(actor)
@@ -3784,7 +3779,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (ghost && !ghost.destroyed) ghost.destroy();
             };
 
-            const spawnHandler = (evt) => {
+            const spawnHandler = async (evt) => {
                 if (evt.data.button !== 0 && evt.data.button !== 2) {
                     canvas.stage.once("pointerdown", spawnHandler);
                     return;

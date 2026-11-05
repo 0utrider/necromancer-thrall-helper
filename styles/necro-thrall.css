@@ -326,21 +326,8 @@
     gap: 10px;
 }
 
-.file-picker-btn,
-.wildcard-btn {
+.file-picker-btn {
     flex: 0 0 40px;
-}
-
-.portfolio-wildcard-tag {
-    display: block;
-    font-size: 0.75rem;
-    color: #9ca3af;
-}
-
-#wildcard-info {
-    display: block;
-    min-height: 1em;
-    color: #9ca3af;
 }
 
 .checkbox-group label {

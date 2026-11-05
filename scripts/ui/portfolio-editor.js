@@ -1,5 +1,3 @@
-import { isWildcardPath, listWildcardMatches } from "../system/thrall-manager.js";
-
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
@@ -31,12 +29,9 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
     async _prepareContext(options) {
         const customFamily = this.actor.getFlag("necromancer-thrall-helper", "familyTree") || [];
-        const presets = await Promise.all(customFamily.map(async (p) => {
-            if (!isWildcardPath(p.img)) return { ...p, displayImg: p.img };
-            const matches = await listWildcardMatches(p.img);
-            return { ...p, displayImg: matches[0] ?? "systems/pf2e/icons/default-icons/npc.svg", isWildcard: true, matchCount: matches.length };
-        }));
-        return { presets };
+        return {
+            presets: customFamily
+        };
     }
 
     /** @override */
@@ -121,7 +116,6 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 html.querySelector("#new-thrall-name").value = target.name || "";
                 html.querySelector("#new-thrall-img").value = target.img || "";
-                updateWildcardInfo();
                 html.querySelector("#new-thrall-unique").checked = !!target.isUnique;
                 html.querySelector("#new-thrall-ring").checked = target.ring !== false;
                 html.querySelector("#new-thrall-scale").value = target.scale ?? 1.0;
@@ -148,39 +142,6 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
             });
         });
-        const imgInput = html.querySelector("#new-thrall-img");
-        const wildcardInfo = html.querySelector("#wildcard-info");
-        const updateWildcardInfo = async () => {
-            if (!wildcardInfo) return;
-            const val = imgInput.value.trim();
-            if (!isWildcardPath(val)) {
-                wildcardInfo.textContent = "";
-                return;
-            }
-            const count = (await listWildcardMatches(val)).length;
-            wildcardInfo.textContent = count
-                ? `${count} image${count === 1 ? "" : "s"} match - one is picked at random each time this thrall is summoned.`
-                : "No images match this pattern (yet).";
-        };
-        imgInput?.addEventListener("input", updateWildcardInfo);
-        updateWildcardInfo();
-
-        // Turn "art/thrall-01.webp" into "art/thrall-*.webp"
-        const wildcardBtn = html.querySelector("#wildcard-btn");
-        if (wildcardBtn) {
-            wildcardBtn.addEventListener("click", (e) => {
-                e.preventDefault();
-                const val = imgInput.value.trim();
-                if (!val || isWildcardPath(val)) return;
-                const wild = val.replace(/\d+(\.[^./]+)$/, "*$1");
-                if (wild === val) {
-                    return ui.notifications.warn("Couldn't find a number to replace. Type a pattern like path/thrall-*.webp instead.");
-                }
-                imgInput.value = wild;
-                updateWildcardInfo();
-            });
-        }
-
         const filePickerBtn = html.querySelector(".file-picker-btn");
         if (filePickerBtn) {
             filePickerBtn.addEventListener("click", (e) => {
@@ -189,7 +150,6 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                     type: "image",
                     callback: (path) => {
                         html.querySelector("#new-thrall-img").value = path;
-                        updateWildcardInfo();
                     }
                 }).render(true);
             });
@@ -229,11 +189,6 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 if (!img) {
                     img = "systems/pf2e/icons/default-icons/npc.svg";
-                } else if (isWildcardPath(img)) {
-                    // A HEAD request can't resolve a wildcard; check for matches instead.
-                    if ((await listWildcardMatches(img)).length === 0) {
-                        ui.notifications.warn(`No images match "${img}" yet. The default icon is used until some exist.`);
-                    }
                 } else {
                     try {
                         const response = await fetch(img, { method: "HEAD" });
@@ -296,8 +251,6 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         html.querySelector("#builder-heading").textContent = "Draft New Thrall";
         html.querySelector("#new-thrall-name").value = "";
         html.querySelector("#new-thrall-img").value = "";
-        const info = html.querySelector("#wildcard-info");
-        if (info) info.textContent = "";
         html.querySelector("#new-thrall-custom-adj").value = "";
         html.querySelector("#new-thrall-ring").checked = true;
         html.querySelector("#new-thrall-scale").value = 1.0;
