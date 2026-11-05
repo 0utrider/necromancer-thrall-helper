@@ -1,3 +1,5 @@
+import { isWildcardPath, listWildcardMatches } from "../system/thrall-manager.js";
+
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
 export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
