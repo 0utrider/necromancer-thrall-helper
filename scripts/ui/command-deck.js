@@ -3374,14 +3374,14 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 <label>Image Scale:</label>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <input type="range" class="scale-slider" id="${key}-img-scale" data-val-target="${key}-scale-val" min="0.25" max="5" step="0.05" value="${c.scale}" style="width: 100px;">
-                                    <span id="${key}-scale-val" style="min-width: 25px; text-align: right;">${c.scale}</span>
+                                    <input type="number" min="0.25" max="5" step="0.05" value="${c.scale}" style="width: 58px; text-align: right; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;" id="${key}-scale-val" class="scale-num" data-slider="${key}-img-scale" title="Type an exact value">
                                 </div>
                             </div>
                             <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
                                 <label>Ring Subject Scale:</label>
                                 <div style="display: flex; align-items: center; gap: 8px;">
                                     <input type="range" class="scale-slider" id="${key}-ring-scale" data-val-target="${key}-ring-scale-val" min="0.5" max="5" step="0.05" value="${c.ringScale ?? c.scale}" style="width: 100px;" ${c.ringScale === undefined ? "disabled" : ""}>
-                                    <span id="${key}-ring-scale-val" style="min-width: 25px; text-align: right;">${c.ringScale ?? c.scale}</span>
+                                    <input type="number" min="0.5" max="5" step="0.05" value="${c.ringScale ?? c.scale}" style="width: 58px; text-align: right; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;" id="${key}-ring-scale-val" class="scale-num" data-slider="${key}-ring-scale" title="Type an exact value" ${c.ringScale === undefined ? "disabled" : ""}>
                                 </div>
                             </div>
                             <div class="form-group" style="display: flex; justify-content: space-between; margin-top: 3px;">
@@ -3427,7 +3427,14 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                         dialogHtml.find(".scale-slider").on("input", (evt) => {
                             const targetId = $(evt.currentTarget).data("val-target");
-                            dialogHtml.find(`#${targetId}`).text(evt.target.value);
+                            dialogHtml.find(`#${targetId}`).val(evt.target.value);
+                        });
+                        // Typed values: move the slider (clamped to its range) and run its handler.
+                        dialogHtml.find(".scale-num").on("change", (evt) => {
+                            const slider = dialogHtml.find(`#${$(evt.currentTarget).data("slider")}`);
+                            const v = parseFloat(evt.currentTarget.value);
+                            if (Number.isFinite(v)) slider.val(v);
+                            slider.trigger("input");
                         });
 
                         // Animated art can't use the dynamic ring: disable the box (keeping the saved
@@ -3452,7 +3459,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         // Fill the Base Thrall fields with the bundled art; save as usual.
                         dialogHtml.find("#use-bundled-art-btn").on("click", (evt) => {
                             evt.preventDefault();
-                            dialogHtml.find("#thrall-img-path").val(BUNDLED_THRALL.token);
+                            // Ring on, so the ring-subject cutout is also the token art.
+                            dialogHtml.find("#thrall-img-path").val(BUNDLED_THRALL.subject);
                             dialogHtml.find("#thrall-portrait-path").val(BUNDLED_THRALL.portrait);
                             dialogHtml.find("#thrall-subject-path").val(BUNDLED_THRALL.subject);
                             dialogHtml.find("#thrall-ring-enabled").prop("checked", true);
@@ -3468,7 +3476,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const ring = dialogHtml.find(`#${key}-ring-scale`);
                             ring.prop("disabled", linked);
                             if (linked) ring.val(dialogHtml.find(`#${key}-img-scale`).val());
-                            dialogHtml.find(`#${key}-ring-scale-val`).text(ring.val());
+                            dialogHtml.find(`#${key}-ring-scale-val`).val(ring.val()).prop("disabled", linked);
                         };
                         for (const key of Object.keys(configKeys)) {
                             dialogHtml.find(`#${key}-ring-link`).on("change", () => syncRing(key));

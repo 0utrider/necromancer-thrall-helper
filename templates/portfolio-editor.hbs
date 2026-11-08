@@ -105,6 +105,7 @@
             <label title="Summoning the plain (Default Thrall) will use this profile instead">
                 <input type="checkbox" id="new-thrall-default"> Use as my default thrall
             </label>
+            <button type="button" id="reset-default-thrall-btn" class="sub-btn" title="Go back to the standard Default Thrall (clears the profile marked as default)"><i class="fas fa-rotate-left"></i> Reset default</button>
         </div>
         <div class="form-group checkbox-group">
             <label>
@@ -116,14 +117,14 @@
             <label>Token Art Scale:</label>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <input type="range" id="new-thrall-scale" min="0.25" max="5" step="0.05" value="1" style="width: 100px;">
-                <span id="new-thrall-scale-val" style="min-width: 25px; text-align: right;">1</span>
+                <input type="number" min="0.25" max="5" step="0.05" value="1" style="width: 58px; text-align: right; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;" id="new-thrall-scale-val" title="Type an exact value">
             </div>
         </div>
         <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
             <label>Ring Subject Scale:</label>
             <div style="display: flex; align-items: center; gap: 8px;">
                 <input type="range" id="new-thrall-ring-scale" min="0.5" max="5" step="0.05" value="1" style="width: 100px;" disabled>
-                <span id="new-thrall-ring-scale-val" style="min-width: 25px; text-align: right;">1</span>
+                <input type="number" min="0.5" max="5" step="0.05" value="1" style="width: 58px; text-align: right; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;" id="new-thrall-ring-scale-val" title="Type an exact value" disabled>
             </div>
         </div>
         <div class="form-group checkbox-group" style="margin-bottom: 10px;">

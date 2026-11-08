@@ -125,6 +125,18 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
             });
         });
 
+        html.querySelector("#reset-default-thrall-btn")?.addEventListener("click", async (e) => {
+            e.preventDefault();
+            if (this.actor.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId")) {
+                await this.actor.unsetFlag("necromancer-thrall-helper", "defaultFamilyEntryId");
+                ui.notifications.info("Default thrall reset: the plain Default Thrall is used again.");
+            } else {
+                ui.notifications.info("No profile is set as the default thrall.");
+            }
+            html.querySelector("#new-thrall-default").checked = false;
+            this.render(true);
+        });
+
         const editBtns = html.querySelectorAll(".edit-preset-btn");
         editBtns.forEach(btn => {
             btn.addEventListener("click", (e) => {
@@ -147,13 +159,14 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 html.querySelector("#new-thrall-default").checked = this.actor.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId") === target.id;
                 html.querySelector("#new-thrall-ring").checked = target.ring !== false;
                 html.querySelector("#new-thrall-scale").value = target.scale ?? 1.0;
-                html.querySelector("#new-thrall-scale-val").textContent = target.scale ?? 1.0;
+                html.querySelector("#new-thrall-scale-val").value = target.scale ?? 1.0;
                 const ringLinked = target.ringScale === undefined;
                 const ringScaleValue = target.ringScale ?? target.scale ?? 1.0;
                 html.querySelector("#new-thrall-ring-link").checked = ringLinked;
                 html.querySelector("#new-thrall-ring-scale").value = ringScaleValue;
                 html.querySelector("#new-thrall-ring-scale").disabled = ringLinked;
-                html.querySelector("#new-thrall-ring-scale-val").textContent = ringScaleValue;
+                html.querySelector("#new-thrall-ring-scale-val").disabled = ringLinked;
+                html.querySelector("#new-thrall-ring-scale-val").value = ringScaleValue;
 
                 const checkboxes = html.querySelectorAll("input[name='adjective']");
                 const customAdjs = [];
@@ -256,15 +269,26 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         const scaleSlider = html.querySelector("#new-thrall-scale");
         const ringSlider = html.querySelector("#new-thrall-ring-scale");
         const ringLink = html.querySelector("#new-thrall-ring-link");
+        const scaleNum = html.querySelector("#new-thrall-scale-val");
+        const ringNum = html.querySelector("#new-thrall-ring-scale-val");
         const syncRingSlider = () => {
             ringSlider.disabled = ringLink.checked;
+            ringNum.disabled = ringLink.checked;
             if (ringLink.checked) ringSlider.value = scaleSlider.value;
-            html.querySelector("#new-thrall-ring-scale-val").textContent = ringSlider.value;
+            ringNum.value = ringSlider.value;
         };
         scaleSlider?.addEventListener("input", (e) => {
-            html.querySelector("#new-thrall-scale-val").textContent = e.target.value;
+            scaleNum.value = e.target.value;
             if (ringLink.checked) syncRingSlider();
         });
+        // Typed values: clamp to the slider's range and run the slider's own handler.
+        for (const [num, slider] of [[scaleNum, scaleSlider], [ringNum, ringSlider]]) {
+            num?.addEventListener("change", () => {
+                const v = parseFloat(num.value);
+                slider.value = Number.isFinite(v) ? v : slider.value;
+                slider.dispatchEvent(new Event("input"));
+            });
+        }
         ringSlider?.addEventListener("input", syncRingSlider);
         ringLink?.addEventListener("change", syncRingSlider);
         const saveBtn = html.querySelector("#save-thrall-btn");
@@ -414,11 +438,12 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         html.querySelector("#new-thrall-ring-link").checked = true;
         html.querySelector("#new-thrall-ring-scale").value = 1.0;
         html.querySelector("#new-thrall-ring-scale").disabled = true;
-        html.querySelector("#new-thrall-ring-scale-val").textContent = "1";
+        html.querySelector("#new-thrall-ring-scale-val").value = "1";
+        html.querySelector("#new-thrall-ring-scale-val").disabled = true;
         html.querySelector("#new-thrall-custom-adj").value = "";
         html.querySelector("#new-thrall-ring").checked = true;
         html.querySelector("#new-thrall-scale").value = 1.0;
-        html.querySelector("#new-thrall-scale-val").textContent = "1";
+        html.querySelector("#new-thrall-scale-val").value = "1";
         html.querySelectorAll("input[name='adjective']").forEach(cb => cb.checked = false);
         const saveBtn = html.querySelector("#save-thrall-btn");
         saveBtn.innerHTML = '<i class="fas fa-plus"></i> Add to Portfolio';
