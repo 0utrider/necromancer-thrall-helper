@@ -210,14 +210,12 @@ export const FALLBACK_THRALL_ART = BUNDLED_THRALL.token;
 
 /**
  * Write the bundled look into a token payload: art, ring subject and its scale, and (unless
- * told otherwise) the portrait flag. The image scale is 1 because the ring sizes the subject.
+ * told otherwise) the portrait flag. The image scale is left alone so PF2e's size autoscale applies.
  * The ring is switched on only with forceRing; otherwise the payload's own setting stands.
  */
 export function applyBundledLook(payload, { forceRing = false, portrait = true } = {}) {
     payload.texture = payload.texture || {};
     payload.texture.src = BUNDLED_THRALL.token;
-    payload.texture.scaleX = 1;
-    payload.texture.scaleY = 1;
     payload.ring = payload.ring || {};
     payload.ring.subject = payload.ring.subject || {};
     payload.ring.subject.texture = BUNDLED_THRALL.subject;

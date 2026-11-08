@@ -46,6 +46,11 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space: nowrap;
         }
         .roster-grid button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: #777; }
+        /* Top row: cog, Portfolio, Default Look on one line */
+        .roster-grid.roster-top { display: grid; grid-template-columns: 34px 1fr 1fr; gap: 6px; }
+        .roster-grid.roster-top button { white-space: nowrap; }
+        .roster-grid.roster-top .effect-colors-btn { padding: 8px 0; }
+        .roster-grid.roster-top .effect-colors-btn i { margin: 0; }
 
         /* Footer - Auto-Tiling Grid */
         .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; flex-shrink: 0; }
@@ -155,16 +160,16 @@
         </div>
     </header>
 
-    <div class="roster-grid">
+    <div class="roster-grid roster-top">
+        <button type="button" class="effect-colors-btn" data-tooltip="Necromancer Settings" aria-label="Necromancer Settings">
+            <i class="fas fa-cog"></i>
+        </button>
         <button type="button" class="edit-portfolio-btn" title="Edit Thrall Portfolio">
             <i class="fas fa-book-dead"></i> Portfolio
         </button>
         {{#if canBrowse}}
-<button type="button" class="set-default-img-btn custom-css-class-here">
-    <i class="fas fa-image"></i> Default Thrall Look
-</button>
-<button type="button" class="effect-colors-btn custom-css-class-here">
-    <i class="fas fa-cog"></i> Settings
+<button type="button" class="set-default-img-btn custom-css-class-here" title="Default Thrall Look">
+    <i class="fas fa-image"></i> Default Look
 </button>
 {{/if}}
         {{#if hasHallowedEarth}}

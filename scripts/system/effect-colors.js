@@ -90,6 +90,17 @@ export function setupEffectColorHooks() {
     Hooks.on("createItem", (item, opts, userId) => onItem(item, null, opts, userId));
     Hooks.on("updateItem", onItem);
 
+    // AoE Easy Resolve recolors the region right after creating it (with the particle color), so
+    // keep the zone border on every update too. Runs on all clients: AER updates on the placer's.
+    Hooks.on("preUpdateRegion", (doc, changes) => {
+        if (!("color" in changes)) return;
+        const origin = doc.flags?.pf2e?.origin;
+        if (!ZONE_SPELLS.includes(origin?.slug) || !origin.actor) return;
+        const actor = fromUuidSync(origin.actor);
+        if (!actor) return;
+        changes.color = zoneBorderColor(actor);
+    });
+
     // Zones from the necromancer's spells use the zone border colour (the owner's player colour by
     // default) instead of whoever placed them, whatever AoE Easy Resolve's custom colour is.
     Hooks.on("preCreateRegion", (region, data) => {

@@ -536,3 +536,15 @@
 .necro-settings .dialog-buttons { display: flex; gap: 6px; }
 .necro-settings .dialog-button.reset { flex: 0 0 40px; }
 .necro-settings .dialog-button.save { flex: 1; }
+
+/* Necromancer Settings: dark controls, centered icon and checkbox */
+.necro-settings select { color-scheme: dark; background: #27272a; color: #e4e4e7; }
+.necro-settings select option { background: #27272a; color: #e4e4e7; }
+.necro-settings select option:checked { background: #4c1d95; color: #fff; }
+.necro-settings .dialog-buttons button { color: #e4e4e7; background: rgba(0,0,0,.5); border: 1px solid #555; }
+.necro-settings .dialog-buttons button.save { background: #4c1d95; border-color: #7c3aed; }
+.necro-settings .dialog-buttons button:hover { filter: brightness(1.2); }
+.necro-settings .necro-link-btn { display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; }
+.necro-settings .necro-link-btn i { margin: 0; width: auto; }
+.necro-settings #fx-use-player { margin: 0 2px; flex: 0 0 20px; }
+.necro-settings .necro-chip { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #888; vertical-align: middle; }

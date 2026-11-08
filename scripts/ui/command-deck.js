@@ -3582,7 +3582,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             </div>
                             <h3>Effect Colors</h3>
                             <div class="necro-row">
-                                <label title="Use the color of the player who owns this necromancer, even when the GM places the effect.">Effects use player color <span style="color: ${playerColor};">&#9679;</span></label>
+                                <label title="Use the color of the player who owns this necromancer, even when the GM places the effect.">Effects use player color <span class="necro-chip" style="background: ${playerColor};"></span></label>
                                 <input type="checkbox" id="fx-use-player" ${saved.usePlayer ? "checked" : ""}>
                             </div>
                             ${rows}
@@ -3594,6 +3594,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         </form>`,
                     render: (dialogHtml) => {
                         const app = dialogHtml.closest(".app, .window-app");
+                        app.removeClass("theme-light").addClass("theme-dark");
                         app.find(".window-title").prepend('<i class="fas fa-cog" style="margin-right: 6px;"></i>');
                         const linkBtn = dialogHtml.find("#fx-zone-link");
                         const zoneInput = dialogHtml.find("#fx-zone-color");
