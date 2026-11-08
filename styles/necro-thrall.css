@@ -581,3 +581,57 @@
 .necro-look .scale-slider::-moz-range-track { background: #333; height: 4px; border-radius: 2px; }
 .necro-look .scale-slider::-webkit-slider-thumb { background: #7c3aed; border: 1px solid #a78bfa; }
 .necro-look .scale-slider::-moz-range-thumb { background: #7c3aed; border: 1px solid #a78bfa; }
+
+/* ---- Shared look: Necromancer Settings, Default Thrall Look, Thrall Portfolio ---- */
+.necro-dark {
+    --checkbox-checked-color: #7c3aed; --checkbox-checkmark-color: #fff;
+    --checkbox-background-color: #27272a; --checkbox-border-color: #555;
+}
+.necro-dark input[type=checkbox]:checked::before { color: #7c3aed; }
+.necro-dark input[type=checkbox]:checked::after { color: #fff; }
+.necro-dark input[type=range] { accent-color: #7c3aed; }
+.necro-dark input[type=range]::-webkit-slider-thumb { background: #7c3aed; border-color: #a78bfa; }
+.necro-dark input[type=range]::-moz-range-thumb { background: #7c3aed; border-color: #a78bfa; }
+.necro-dark input[type=range]:disabled { opacity: .4; }
+.necro-dark ::placeholder { color: #71717a; }
+.necro-dark input[type=text], .necro-dark input[type=number], .necro-dark select { background: #27272a; color: #e4e4e7; border: 1px solid #444; border-radius: 4px; color-scheme: dark; height: 26px; }
+.necro-dark .necro-section, .necro-settings .necro-settings-form h3 {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    margin: 0 0 8px; padding: 0 0 4px; border: 0; border-bottom: 1px solid #333;
+    font: 600 .8em var(--font-primary, Signika, sans-serif); text-transform: uppercase; letter-spacing: .08em; color: #a78bfa;
+}
+.necro-dark .necro-section i { margin-right: 4px; }
+.necro-dark .necro-section-actions { display: flex; gap: 6px; }
+
+/* Thrall Portfolio */
+.necro-portfolio .window-content { padding: 10px 12px; }
+.necro-portfolio .portfolio-wrapper { padding: 0; gap: 8px; max-height: 78vh; overflow-y: auto; padding-right: 6px; }
+.necro-portfolio .portfolio-list { max-height: 185px; overflow-y: auto; padding-right: 4px; flex-shrink: 0; }
+.necro-portfolio .portfolio-row { border-radius: 4px; padding: 4px; }
+.necro-portfolio .portfolio-row:hover { background: rgba(255,255,255,.04); }
+.necro-portfolio .portfolio-builder .form-group { margin: 0 0 8px; }
+.necro-portfolio .portfolio-builder input[type="text"] { height: 26px; padding: 0 6px; border: 1px solid #444; background: #27272a; color: #e4e4e7; }
+.necro-portfolio .field-label { display: block; margin: 6px 0 2px; font-size: .9em; color: #ccc; }
+.necro-portfolio .help-icon { margin-left: 4px; font-size: .85em; opacity: .45; cursor: help; }
+.necro-portfolio .flexrow { gap: 6px; }
+.necro-portfolio .file-picker-btn, .necro-portfolio .wildcard-btn, .necro-portfolio .action-btn {
+    flex: 0 0 28px; width: 28px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.5); border: 1px solid #555; color: #ddd;
+}
+.necro-portfolio .file-picker-btn i, .necro-portfolio .wildcard-btn i, .necro-portfolio .action-btn i { margin: 0; }
+.necro-portfolio .sub-btn { background: rgba(0,0,0,.5); border: 1px solid #555; color: #ddd; border-radius: 4px; height: 26px; padding: 0 8px; }
+.necro-portfolio .sub-btn i { margin-right: 4px; }
+.necro-portfolio .sub-btn:hover, .necro-portfolio .action-btn:hover, .necro-portfolio .file-picker-btn:hover, .necro-portfolio .wildcard-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+.necro-portfolio .add-thrall-btn { width: 100%; height: 32px; margin-top: 4px; background: #4c1d95; border: 1px solid #7c3aed; color: #fff; }
+.necro-portfolio .add-thrall-btn:hover { background: #4c1d95; filter: brightness(1.2); box-shadow: none; }
+.necro-portfolio .adjective-section { background: rgba(0,0,0,.2); border: 1px solid #333; }
+.necro-portfolio .adjective-header { margin-bottom: 6px; }
+.necro-portfolio .adjective-checkbox-grid { scrollbar-width: thin; scrollbar-color: #444 transparent; }
+.necro-portfolio .adjective-checkbox-grid::-webkit-scrollbar { width: 6px; }
+.necro-portfolio .adjective-checkbox-grid::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+.necro-portfolio .default-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.necro-portfolio .scale-row { display: flex; align-items: center; gap: 8px; }
+.necro-portfolio .scale-row > label { flex: 0 0 130px; font-size: .92em; }
+.necro-portfolio .scale-wrap { flex: 1; display: flex; align-items: center; gap: 6px; }
+.necro-portfolio .scale-wrap input[type=range] { flex: 1; min-width: 0; }
+.necro-portfolio .scale-num { flex: 0 0 52px; width: 52px; text-align: center; }

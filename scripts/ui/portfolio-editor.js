@@ -12,13 +12,14 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     static DEFAULT_OPTIONS = {
         id: "thrall-portfolio-editor",
-        title: "Thrall Portfolio",
+        classes: ["necro-dark", "necro-portfolio"],
         tag: "form",
         position: {
             width: 450,
             height: "auto"
         },
         window: {
+            title: "Thrall Portfolio",
             icon: "fas fa-book-dead",
             resizable: false
         }
@@ -185,9 +186,9 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 }
                 html.querySelector("#new-thrall-custom-adj").value = customAdjs.join(", ");
 
-                html.querySelector("#builder-heading").textContent = `Editing: ${target.name}`;
+                html.querySelector("#builder-title").textContent = `Edit ${target.name}`;
                 const saveBtn = html.querySelector("#save-thrall-btn");
-                saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
+                saveBtn.innerHTML = '<i class="fas fa-save"></i> Update';
             });
         });
         // Each image field supports wildcards (path/thrall-*.webp), a match count,
@@ -429,7 +430,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
     resetForm(html) {
         this.editingId = null;
-        html.querySelector("#builder-heading").textContent = "Draft New Thrall";
+        html.querySelector("#builder-title").textContent = "Draft New Thrall";
         html.querySelector("#new-thrall-name").value = "";
         html.querySelector("#new-thrall-default").checked = false;
         html.querySelector("#new-thrall-img").value = "";

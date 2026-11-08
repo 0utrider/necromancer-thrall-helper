@@ -1,13 +1,13 @@
-<div class="portfolio-wrapper" style="max-height: 78vh; overflow-y: auto; padding-right: 6px;">
-    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #444; padding-bottom: 6px;">
-        <span style="font-weight: bold; color: #ccc; font-size: 0.9rem;"><i class="fas fa-users"></i> Saved Identities</span>
-        <div style="display: flex; gap: 6px;">
+<div class="portfolio-wrapper">
+    <div class="necro-section">
+        <span><i class="fas fa-users"></i> Saved Identities</span>
+        <div class="necro-section-actions">
             <button type="button" id="export-portfolio-btn" class="sub-btn" title="Export Portfolio to JSON"><i class="fas fa-file-export"></i> Export</button>
             <button type="button" id="import-portfolio-btn" class="sub-btn" title="Import Portfolio from JSON"><i class="fas fa-file-import"></i> Import</button>
         </div>
     </div>
 
-    <section class="portfolio-list" style="max-height: 185px; overflow-y: auto; padding-right: 4px; flex-shrink: 0;">
+    <section class="portfolio-list">
         {{#if presets.length}}
             {{#each presets}}
                 <div class="portfolio-row" data-id="{{this.id}}">
@@ -31,14 +31,12 @@
         {{/if}}
     </section>
 
-    <hr>
-
     <section class="portfolio-builder">
-        <h3 id="builder-heading">Draft New Thrall</h3>
+        <h3 id="builder-heading" class="necro-section"><span><i class="fas fa-feather"></i> <span id="builder-title">Draft New Thrall</span></span></h3>
         <div class="form-group">
             <input type="text" id="new-thrall-name" placeholder="Thrall Name">
         </div>
-        <label class="field-label" for="new-thrall-img">Token Art <small>(image or animated .webm; wildcards allowed)</small></label>
+        <label class="field-label" for="new-thrall-img" data-tooltip="image or animated .webm; wildcards allowed">Token Art <i class="fas fa-circle-question help-icon"></i></label>
         <div class="form-group flexrow">
             <input type="text" id="new-thrall-img" placeholder="path/thrall.webp or path/thrall-*.webm">
             <button type="button" id="img-pick-btn" class="file-picker-btn" title="Browse Files"><i class="fas fa-file-import"></i></button>
@@ -46,25 +44,25 @@
         </div>
         <small id="wildcard-info" class="hint"></small>
 
-        <label class="field-label" for="new-thrall-portrait">Portrait <small>(still image shown in the Command Deck and chat cards; optional)</small></label>
+        <label class="field-label" for="new-thrall-portrait" data-tooltip="still image shown in the Command Deck and chat cards; optional">Portrait <i class="fas fa-circle-question help-icon"></i></label>
         <div class="form-group flexrow">
-            <input type="text" id="new-thrall-portrait" placeholder="Blank = use the token art (or the actor image if the art is animated)">
+            <input type="text" id="new-thrall-portrait" placeholder="Optional — defaults to token art">
             <button type="button" id="portrait-pick-btn" class="file-picker-btn" title="Browse Files"><i class="fas fa-file-import"></i></button>
             <button type="button" id="portrait-wildcard-btn" class="wildcard-btn" title="Make wildcard: replace the number in the filename with *"><i class="fas fa-shuffle"></i></button>
         </div>
         <small id="portrait-info" class="hint"></small>
 
-        <label class="field-label" for="new-thrall-ring-subject">Ring Subject <small>(transparent cutout for the dynamic token ring; optional)</small></label>
+        <label class="field-label" for="new-thrall-ring-subject" data-tooltip="transparent cutout for the dynamic token ring; optional">Ring Subject <i class="fas fa-circle-question help-icon"></i></label>
         <div class="form-group flexrow">
-            <input type="text" id="new-thrall-ring-subject" placeholder="Blank = use the token art when it is a still image">
+            <input type="text" id="new-thrall-ring-subject" placeholder="Optional — cutout for the ring">
             <button type="button" id="subject-pick-btn" class="file-picker-btn" title="Browse Files"><i class="fas fa-file-import"></i></button>
             <button type="button" id="subject-wildcard-btn" class="wildcard-btn" title="Make wildcard: replace the number in the filename with *"><i class="fas fa-shuffle"></i></button>
         </div>
         <small id="subject-info" class="hint"></small>
 
         <div class="form-group adjective-section">
-            <div class="adjective-header">
-                <label>Adjective Pool</label>
+            <div class="adjective-header necro-section">
+                <span><i class="fas fa-list-check"></i> Adjective Pool</span>
                 <button type="button" id="select-all-adj-btn" class="sub-btn">Select All</button>
             </div>
             <div class="adjective-checkbox-grid">
@@ -101,11 +99,11 @@
                 <input type="checkbox" id="new-thrall-unique" checked> Is Unique (Limit one active on field)
             </label>
         </div>
-        <div class="form-group checkbox-group" style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+        <div class="form-group checkbox-group default-row">
             <label title="Summoning the plain (Default Thrall) will use this profile instead">
                 <input type="checkbox" id="new-thrall-default"> Use as my default thrall
             </label>
-            <button type="button" id="reset-default-thrall-btn" class="sub-btn" style="flex: 0 0 auto; width: auto;" title="Go back to the standard Default Thrall (clears the profile marked as default)"><i class="fas fa-rotate-left"></i> Reset default</button>
+            <button type="button" id="reset-default-thrall-btn" class="sub-btn" title="Go back to the standard Default Thrall (clears the profile marked as default)"><i class="fas fa-rotate-left"></i> Reset default</button>
         </div>
         <div class="form-group checkbox-group">
             <label>
@@ -113,21 +111,21 @@
             </label>
             <small id="ring-hint" class="hint"></small>
         </div>
-        <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-            <label>Token Art Scale:</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <input type="range" id="new-thrall-scale" min="0.25" max="5" step="0.05" value="1" style="width: 100px;">
-                <input type="number" min="0.25" max="5" step="0.05" value="1" style="width: 58px; text-align: right; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;" id="new-thrall-scale-val" title="Type an exact value">
+        <div class="form-group scale-row">
+            <label>Token Art Scale</label>
+            <div class="scale-wrap">
+                <input type="range" id="new-thrall-scale" min="0.25" max="5" step="0.05" value="1">
+                <input type="number" min="0.25" max="5" step="0.05" value="1" class="scale-num" id="new-thrall-scale-val" title="Type an exact value">
             </div>
         </div>
-        <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
-            <label>Ring Subject Scale:</label>
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <input type="range" id="new-thrall-ring-scale" min="0.5" max="5" step="0.05" value="1" style="width: 100px;" disabled>
-                <input type="number" min="0.5" max="5" step="0.05" value="1" style="width: 58px; text-align: right; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;" id="new-thrall-ring-scale-val" title="Type an exact value" disabled>
+        <div class="form-group scale-row">
+            <label>Ring Subject Scale</label>
+            <div class="scale-wrap">
+                <input type="range" id="new-thrall-ring-scale" min="0.5" max="5" step="0.05" value="1" disabled>
+                <input type="number" min="0.5" max="5" step="0.05" value="1" class="scale-num" id="new-thrall-ring-scale-val" title="Type an exact value" disabled>
             </div>
         </div>
-        <div class="form-group checkbox-group" style="margin-bottom: 10px;">
+        <div class="form-group checkbox-group">
             <label><input type="checkbox" id="new-thrall-ring-link" checked> Ring subject scale matches token art scale</label>
         </div>
 
