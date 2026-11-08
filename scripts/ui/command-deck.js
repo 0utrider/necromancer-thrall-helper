@@ -2,6 +2,7 @@ import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, 
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 import { notify, notifyForce } from "../system/notify.js";
+import { effectColor, effectColorNum, ownerColor, syncAllParticleColors, EFFECT_COLOR_KEYS } from "../system/effect-colors.js";
 
 
 globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
@@ -817,7 +818,7 @@ if (hasFleshFascination) {
             direction: 0,
             x: necroToken.center.x,
             y: necroToken.center.y,
-            fillColor: "#84cc16",
+            fillColor: effectColor(masterActor, "thickSkin", "#84cc16"),
             flags: {
                 "necromancer-thrall-helper": { source: "thick-skin" },
                 "pf2e": { origin: { uuid: thickSkinItem.uuid } },
@@ -1471,7 +1472,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             
             const gridSize = canvas.scene.grid.size;
             const ghost = new PIXI.Graphics();
-            ghost.beginFill(0x990000, 0.4); ghost.lineStyle(2, 0xff0000, 0.8); ghost.drawRect(0, 0, gridSize, gridSize); ghost.endFill();
+            ghost.beginFill(effectColorNum(necroActor, "bloodPool", "#990000"), 0.4); ghost.lineStyle(2, effectColorNum(necroActor, "bloodPool", "#ff0000"), 0.8); ghost.drawRect(0, 0, gridSize, gridSize); ghost.endFill();
             ghost.zIndex = 1000; ghost.position.set(-1000, -1000); canvas.tokens.addChild(ghost);
             
             const updateGhost = (ev) => { const pos = ev.data.getLocalPosition(canvas.app.stage); const snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos; ghost.position.set(snapped.x, snapped.y); };
@@ -1497,7 +1498,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                     $btn.closest('.death-reaction-actions').html(`<div style="background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 4px; padding: 6px; text-align: center; margin-top: 4px;"><span style="text-decoration: line-through; color: #666; font-weight: bold; font-size: 0.9em; display: block;"><i class="fas fa-ban"></i> Death Reaction</span><span style="display: block; color: #f87171; font-size: 0.85em; font-style: italic; margin-top: 2px;">Expended: Blood Pool</span></div>`);
                 }
 
-                const poolId = foundry.utils.randomID(), regionData = { name: `Blood Pool (${necroActor.name})`, color: "#990000", shapes: [{ type: "rectangle", hole: false, x: snapped.x, y: snapped.y, width: gridSize, height: gridSize, rotation: 0 }], elevation: { bottom: -1000, top: 1000 }, behaviors: [{ name: "Blood Pool Absorption", type: "executeScript", system: { events: ["tokenEnter", "tokenTurnStart"], source: `if (event.data.token?.actor) globalThis.NecroThrallHelper?.handleBloodPoolTrigger(event.region, event.data.token);` } }], flags: { "necromancer-thrall-helper": { isBloodPool: true, poolId: poolId, masterId: necroActor.id, healValue: necroActor.level || 1 } } }, drawingData = { author: game.user.id, shape: { type: "e", width: gridSize, height: gridSize }, x: snapped.x, y: snapped.y, fillType: 1, fillColor: "#880000", fillAlpha: 0.5, strokeWidth: 2, strokeColor: "#ff0000", strokeAlpha: 0.8, text: "🩸 Blood Pool", fontSize: 16, textColor: "#ffffff", flags: { "necromancer-thrall-helper": { poolId: poolId } } };
+                const poolId = foundry.utils.randomID(), regionData = { name: `Blood Pool (${necroActor.name})`, color: effectColor(necroActor, "bloodPool", "#990000"), shapes: [{ type: "rectangle", hole: false, x: snapped.x, y: snapped.y, width: gridSize, height: gridSize, rotation: 0 }], elevation: { bottom: -1000, top: 1000 }, behaviors: [{ name: "Blood Pool Absorption", type: "executeScript", system: { events: ["tokenEnter", "tokenTurnStart"], source: `if (event.data.token?.actor) globalThis.NecroThrallHelper?.handleBloodPoolTrigger(event.region, event.data.token);` } }], flags: { "necromancer-thrall-helper": { isBloodPool: true, poolId: poolId, masterId: necroActor.id, healValue: necroActor.level || 1 } } }, drawingData = { author: game.user.id, shape: { type: "e", width: gridSize, height: gridSize }, x: snapped.x, y: snapped.y, fillType: 1, fillColor: "#880000", fillAlpha: 0.5, strokeWidth: 2, strokeColor: "#ff0000", strokeAlpha: 0.8, text: "🩸 Blood Pool", fontSize: 16, textColor: "#ffffff", flags: { "necromancer-thrall-helper": { poolId: poolId } } };
                 const hazardResult = await executeHazard(regionData, drawingData);
                 
                 setTimeout(async () => { 
@@ -3064,8 +3065,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 necroCenter = necroTokens[0].center;
                 const rangeInPixels = (60 / canvas.scene.grid.distance) * canvas.grid.size;
                 rangeIndicator = new PIXI.Graphics();
-                rangeIndicator.beginFill(0x22c55e, 0.05);
-                rangeIndicator.lineStyle(3, 0x22c55e, 0.5);
+                rangeIndicator.beginFill(effectColorNum(actor, "rangeRing", "#22c55e"), 0.05);
+                rangeIndicator.lineStyle(3, effectColorNum(actor, "rangeRing", "#22c55e"), 0.5);
                 rangeIndicator.drawCircle(necroCenter.x, necroCenter.y, rangeInPixels);
                 rangeIndicator.endFill();
                 rangeIndicator.zIndex = 998;
@@ -3516,6 +3517,80 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
 
 
+        // --- EFFECT COLORS ---
+        const colorsBtn = html.querySelector(".effect-colors-btn");
+        if (colorsBtn) {
+            colorsBtn.addEventListener("click", async (e) => {
+                e.preventDefault();
+                const actor = game.actors.get(this.necroId) || game.user.character;
+                if (!actor) return;
+
+                const saved = actor.getFlag("necromancer-thrall-helper", "effectColors") || {};
+                const playerColor = ownerColor(actor);
+                const rows = EFFECT_COLOR_KEYS.map(({ key, label, fallback }) => `
+                    <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
+                        <label style="flex: 1;">${label}</label>
+                        <input type="color" class="fx-color" data-key="${key}" value="${saved[key] || fallback || playerColor}" style="flex: 0 0 50px;">
+                    </div>`).join("");
+                const level = game.settings.get("necromancer-thrall-helper", "notificationLevel");
+                const levelOptions = Object.entries(game.settings.settings.get("necromancer-thrall-helper.notificationLevel").choices)
+                    .map(([v, l]) => `<option value="${v}" ${v === level ? "selected" : ""}>${l}</option>`).join("");
+
+                new Dialog({
+                    title: "Effect Colors",
+                    content: `
+                        <form autocomplete="off" style="margin-bottom: 10px;">
+                            <p>Colors for the effects ${foundry.utils.escapeHTML(actor.name)} creates.</p>
+                            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                                <label title="Use the color of the player who owns this necromancer, even when the GM places the effect.">Use player's color (<span style="color: ${playerColor};">&#9632;</span>):</label>
+                                <input type="checkbox" id="fx-use-player" ${saved.usePlayer ? "checked" : ""}>
+                            </div>
+                            ${rows}
+                            <hr style="border-color: #555;">
+                            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                                <label title="Applies to you only, on this device.">Pop-up messages:</label>
+                                <select id="fx-notify-level">${levelOptions}</select>
+                            </div>
+                        </form>`,
+                    render: (dialogHtml) => {
+                        const sync = () => dialogHtml.find(".fx-color").prop("disabled", dialogHtml.find("#fx-use-player").is(":checked"));
+                        dialogHtml.find("#fx-use-player").on("change", sync);
+                        sync();
+                    },
+                    buttons: {
+                        save: {
+                            icon: '<i class="fas fa-save"></i>',
+                            label: "Save",
+                            callback: async (dialogHtml) => {
+                                const cfg = { usePlayer: dialogHtml.find("#fx-use-player").is(":checked") };
+                                dialogHtml.find(".fx-color").each((_i, el) => { cfg[el.dataset.key] = el.value; });
+                                await actor.setFlag("necromancer-thrall-helper", "effectColors", cfg);
+                                await syncAllParticleColors(actor);
+                                await game.settings.set("necromancer-thrall-helper", "notificationLevel", dialogHtml.find("#fx-notify-level").val());
+                                notify("info", "Effect colors saved.");
+                            }
+                        },
+                        reset: {
+                            icon: '<i class="fas fa-rotate-left"></i>',
+                            label: "Reset to defaults",
+                            callback: async () => {
+                                await actor.unsetFlag("necromancer-thrall-helper", "effectColors");
+                                // Hand particle colors back to AoE Easy Resolve (the placing player's color).
+                                for (const item of actor.items) {
+                                    if (item.type === "spell" && item.flags?.["aoe-easy-resolve"]?.useCustomColor) {
+                                        await item.update({ "flags.aoe-easy-resolve.useCustomColor": false });
+                                    }
+                                }
+                                notify("info", "Effect colors reset.");
+                            }
+                        },
+                        cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
+                    },
+                    default: "save"
+                }).render(true);
+            });
+        }
+
         // --- CONJURE SKELETAL LANCERS (UP TO 5) ---
         const lancersBtn = html.querySelector(".conjure-lancers-btn");
         if (lancersBtn) {
@@ -3546,8 +3621,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     necroCenter = necroTokens[0].center;
                     const rangeInPixels = (60 / canvas.scene.grid.distance) * canvas.grid.size;
                     rangeIndicator = new PIXI.Graphics();
-                    rangeIndicator.beginFill(0x22c55e, 0.05);
-                    rangeIndicator.lineStyle(3, 0x22c55e, 0.5);
+                    rangeIndicator.beginFill(effectColorNum(actor, "rangeRing", "#22c55e"), 0.05);
+                    rangeIndicator.lineStyle(3, effectColorNum(actor, "rangeRing", "#22c55e"), 0.5);
                     rangeIndicator.drawCircle(necroCenter.x, necroCenter.y, rangeInPixels);
                     rangeIndicator.endFill();
                     rangeIndicator.zIndex = 998;
@@ -3675,8 +3750,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     necroCenter = necroTokens[0].center;
                     const rangeInPixels = (60 / canvas.scene.grid.distance) * canvas.grid.size;
                     rangeIndicator = new PIXI.Graphics();
-                    rangeIndicator.beginFill(0x22c55e, 0.05);
-                    rangeIndicator.lineStyle(3, 0x22c55e, 0.5);
+                    rangeIndicator.beginFill(effectColorNum(actor, "rangeRing", "#22c55e"), 0.05);
+                    rangeIndicator.lineStyle(3, effectColorNum(actor, "rangeRing", "#22c55e"), 0.5);
                     rangeIndicator.drawCircle(necroCenter.x, necroCenter.y, rangeInPixels);
                     rangeIndicator.endFill();
                     rangeIndicator.zIndex = 998;
@@ -4013,8 +4088,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         necroCenter = necroTokens[0].center;
                         const rangeInPixels = (120 / canvas.scene.grid.distance) * canvas.grid.size;
                         rangeIndicator = new PIXI.Graphics();
-                        rangeIndicator.beginFill(0x22c55e, 0.05);
-                        rangeIndicator.lineStyle(3, 0x22c55e, 0.5);
+                        rangeIndicator.beginFill(effectColorNum(actor, "rangeRing", "#22c55e"), 0.05);
+                        rangeIndicator.lineStyle(3, effectColorNum(actor, "rangeRing", "#22c55e"), 0.5);
                         rangeIndicator.drawCircle(necroCenter.x, necroCenter.y, rangeInPixels);
                         rangeIndicator.endFill();
                         rangeIndicator.zIndex = 998;
@@ -4110,7 +4185,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const [templateDoc] = await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{
                                 t: "circle", user: game.user.id,
                                 x: snapped.x + (gridSize * 2), y: snapped.y + (gridSize * 2),
-                                distance: 20, fillColor: game.user.color || "#4b5563", fillAlpha: 0.15,
+                                distance: 20, fillColor: effectColor(actor, "graveyard", game.user.color?.css ?? game.user.color ?? "#4b5563"), fillAlpha: 0.15,
                                 flags: {} 
                             }]);
     
@@ -8285,8 +8360,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     const rangeInPixels = (30 / canvas.scene.grid.distance) * canvas.grid.size;
                                     
                                     rangeIndicator = new PIXI.Graphics();
-                                    rangeIndicator.beginFill(0x22c55e, 0.08); 
-                                    rangeIndicator.lineStyle(3, 0x22c55e, 0.5); 
+                                    rangeIndicator.beginFill(effectColorNum(actor, "rangeRing", "#22c55e"), 0.08); 
+                                    rangeIndicator.lineStyle(3, effectColorNum(actor, "rangeRing", "#22c55e"), 0.5); 
                                     rangeIndicator.drawCircle(masterToken.center.x, masterToken.center.y, rangeInPixels);
                                     rangeIndicator.endFill();
                                     rangeIndicator.zIndex = 998; 
@@ -8442,8 +8517,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     necroCenter = necroTokens[0].center;
                     const rangeInPixels = (30 / canvas.scene.grid.distance) * canvas.grid.size;
                     rangeIndicator = new PIXI.Graphics();
-                    rangeIndicator.beginFill(0x22c55e, 0.05);
-                    rangeIndicator.lineStyle(3, 0x22c55e, 0.5);
+                    rangeIndicator.beginFill(effectColorNum(actor, "rangeRing", "#22c55e"), 0.05);
+                    rangeIndicator.lineStyle(3, effectColorNum(actor, "rangeRing", "#22c55e"), 0.5);
                     rangeIndicator.drawCircle(necroCenter.x, necroCenter.y, rangeInPixels);
                     rangeIndicator.endFill();
                     rangeIndicator.zIndex = 998;
@@ -8623,8 +8698,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     necroCenter = necroTokens[0].center;
                     const rangeInPixels = (30 / canvas.scene.grid.distance) * canvas.grid.size;
                     rangeIndicator = new PIXI.Graphics();
-                    rangeIndicator.beginFill(0x22c55e, 0.05);
-                    rangeIndicator.lineStyle(3, 0x22c55e, 0.5);
+                    rangeIndicator.beginFill(effectColorNum(actor, "rangeRing", "#22c55e"), 0.05);
+                    rangeIndicator.lineStyle(3, effectColorNum(actor, "rangeRing", "#22c55e"), 0.5);
                     rangeIndicator.drawCircle(necroCenter.x, necroCenter.y, rangeInPixels);
                     rangeIndicator.endFill();
                     rangeIndicator.zIndex = 998;

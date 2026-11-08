@@ -1,6 +1,7 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
 import { setupHooks } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
+import { setupEffectColorHooks } from "./system/effect-colors.js";
 import { notify, notifyForce } from "./system/notify.js";
 
 Hooks.once("setup", function () {
@@ -66,6 +67,7 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
     console.log("Necromancer Thrall Helper | Binding hooks.");
     setupHooks();
+    setupEffectColorHooks();
 });
 
 Hooks.on("getSceneControlButtons", (controls) => {
