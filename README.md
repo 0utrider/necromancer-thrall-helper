@@ -22,7 +22,7 @@
 * Wildcard art: any image path can be a pattern such as `path/to/art/thrall-*.webp`; one matching file is picked at random each time a thrall is summoned.
 * Animated art: token art can be a `.webm`. Dynamic token rings don't support animation, so the ring is skipped for animated art unless you also set a Ring Subject (a transparent cutout image).
 * Portraits and ring subjects: each look can have a still-image Portrait (shown in the Command Deck and chat cards) and a Ring Subject (the cutout the dynamic ring draws). If the art and these are all wildcards, files that share the same `*` text are paired, e.g. `thrall-03.webm` with `portrait-03.webp` and `subject-03.webp`.
-* Missing token packs: if a thrall or summon type points at art from a token pack that isn't installed, a bundled fallback image is used instead.
+* Missing token packs: if a thrall or summon type points at art from a token pack that isn't installed, a bundled fallback image is used instead. The plain Thrall's look is chosen in this order: your own default art (Default Summon Config), the bundled art if "Use bundled default instead of compendium art" is checked, the compendium art if its token pack is active, and the bundled art otherwise. "Use bundled art" in Default Summon Config fills the fields in for you to tweak.
 
 **Credits**
-* The fallback image `assets/thrall.webp` comes from The Battle for Wesnoth (artist doofus-01, GPL v2+). Details are in [`assets/CREDITS.md`](assets/CREDITS.md).
+* The fallback image `assets/thrall.webp` (and the portrait, ring subject and token cut from it by `tools/make_thrall_subject.py`) comes from The Battle for Wesnoth (artist doofus-01, GPL v2+). Details are in [`assets/CREDITS.md`](assets/CREDITS.md).

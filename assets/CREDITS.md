@@ -16,3 +16,10 @@ and `pf2e-tokens-monster-core`, or `pf2e-summons-assistant`).
 
 This image keeps its own license. It is not covered by the MIT license that applies to this module's
 code. If you redistribute or modify it, keep this credit and follow the license above.
+
+### Derived images
+
+`thrall-portrait.webp`, `thrall-subject.webp` and `thrall-token.webp` are made from `thrall.webp` by
+[`tools/make_thrall_subject.py`](../tools/make_thrall_subject.py): the portrait is the image as-is,
+the ring subject has its lower half clipped to a circle so it sits inside the token ring, and the
+plain token has its bottom edge faded out. They carry the same credit and license as the source.

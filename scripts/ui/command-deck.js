@@ -1,4 +1,4 @@
-import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, artKind, defaultThrallLabel } from "../system/thrall-manager.js";
+import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 
@@ -3329,6 +3329,18 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     scale: actor.getFlag("necromancer-thrall-helper", configKeys[type].scale) ?? 1.0
                 });
 
+                // Base Thrall only: the module ships its own open-license art (see assets/CREDITS.md).
+                const useBundledSaved = actor.getFlag("necromancer-thrall-helper", "useBundledDefault") === true;
+                const bundledControls = `
+                    <hr style="margin: 10px 0; border-color: #555;">
+                    <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
+                        <label title="Use the module's included thrall art as the default look, even if Paizo token packs are installed.">Use bundled default instead of compendium art:</label>
+                        <input type="checkbox" id="use-bundled-default" ${useBundledSaved ? "checked" : ""} title="Use the module's included thrall art as the default look, even if Paizo token packs are installed.">
+                    </div>
+                    <small style="display: block; color: #9ca3af; margin-bottom: 5px;">A custom look set above always wins. Without Paizo token packs installed, the bundled art is used automatically.</small>
+                    <button type="button" id="use-bundled-art-btn" style="width: 100%;"><i class="fas fa-skull"></i> Use bundled art (fill the fields above)</button>
+                `;
+
                 let optionsHtml = "";
                 let groupsHtml = "";
 
@@ -3376,6 +3388,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 <label>Ring scale matches art scale:</label>
                                 <input type="checkbox" id="${key}-ring-link" ${c.ringScale === undefined ? "checked" : ""}>
                             </div>
+                            ${key === "thrall" ? bundledControls : ""}
                         </div>
                     `;
                 }
@@ -3436,6 +3449,19 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             syncRingHint(key);
                         }
 
+                        // Fill the Base Thrall fields with the bundled art; save as usual.
+                        dialogHtml.find("#use-bundled-art-btn").on("click", (evt) => {
+                            evt.preventDefault();
+                            dialogHtml.find("#thrall-img-path").val(BUNDLED_THRALL.token);
+                            dialogHtml.find("#thrall-portrait-path").val(BUNDLED_THRALL.portrait);
+                            dialogHtml.find("#thrall-subject-path").val(BUNDLED_THRALL.subject);
+                            dialogHtml.find("#thrall-ring-enabled").prop("checked", true);
+                            dialogHtml.find("#thrall-img-scale").val(1).trigger("input");
+                            dialogHtml.find("#thrall-ring-link").prop("checked", false).trigger("change");
+                            dialogHtml.find("#thrall-ring-scale").val(BUNDLED_THRALL.subjectScale).trigger("input");
+                            syncRingHint("thrall");
+                        });
+
                         // Keep the ring scale slider in step with the art scale while linked.
                         const syncRing = (key) => {
                             const linked = dialogHtml.find(`#${key}-ring-link`).is(":checked");
@@ -3467,6 +3493,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         updates[`flags.necromancer-thrall-helper.${map.ringScale}`] = parseFloat(dialogHtml.find(`#${key}-ring-scale`).val());
                                     }
                                 }
+                                updates["flags.necromancer-thrall-helper.useBundledDefault"] = dialogHtml.find("#use-bundled-default").is(":checked");
                                 await actor.update(updates);
                                 ui.notifications.info("Summon configurations updated successfully.");
                             }

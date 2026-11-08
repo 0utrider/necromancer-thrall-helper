@@ -192,13 +192,50 @@ export function tokenPortrait(tokenDoc) {
     return actorImg && !isVideoPath(actorImg) ? actorImg : FALLBACK_IMG;
 }
 
-/** Bundled open-license art used when a look points at a token pack that isn't installed. */
-export const FALLBACK_THRALL_ART = "modules/necromancer-thrall-helper/assets/thrall.webp";
+/**
+ * Bundled open-license art (see assets/CREDITS.md), cut from assets/thrall.webp by
+ * tools/make_thrall_subject.py: a plain token for use without the ring, a ring subject whose
+ * lower half is clipped to sit inside the rim, and a portrait.
+ * subjectScale is the ring.subject.scale that centres the figure in the rim.
+ */
+const ASSET_DIR = "modules/necromancer-thrall-helper/assets/";
+export const BUNDLED_THRALL = {
+    token: ASSET_DIR + "thrall-token.webp",
+    subject: ASSET_DIR + "thrall-subject.webp",
+    portrait: ASSET_DIR + "thrall-portrait.webp",
+    subjectScale: 1
+};
+export const FALLBACK_THRALL_ART = BUNDLED_THRALL.token;
 
-/** True if the path lives in another module that isn't installed (e.g. a purchased token pack). */
-export function isArtMissing(path) {
+/**
+ * Write the bundled look into a token payload: art, ring subject and its scale, and (unless
+ * told otherwise) the portrait flag. The image scale is 1 because the ring sizes the subject.
+ * The ring is switched on only with forceRing; otherwise the payload's own setting stands.
+ */
+export function applyBundledLook(payload, { forceRing = false, portrait = true } = {}) {
+    payload.texture = payload.texture || {};
+    payload.texture.src = BUNDLED_THRALL.token;
+    payload.texture.scaleX = 1;
+    payload.texture.scaleY = 1;
+    payload.ring = payload.ring || {};
+    payload.ring.subject = payload.ring.subject || {};
+    payload.ring.subject.texture = BUNDLED_THRALL.subject;
+    payload.ring.subject.scale = BUNDLED_THRALL.subjectScale;
+    if (forceRing) payload.ring.enabled = true;
+    if (portrait) foundry.utils.setProperty(payload, "flags.necromancer-thrall-helper.portrait", BUNDLED_THRALL.portrait);
+    return payload;
+}
+
+/** The module id a path lives in ("modules/<id>/..."), or null for core/system/world paths. */
+function artModuleId(path) {
     const m = /^modules\/([^/]+)\//.exec(typeof path === "string" ? path : "");
-    return !!m && !game.modules.get(decodeURIComponent(m[1]));
+    return m ? decodeURIComponent(m[1]) : null;
+}
+
+/** True if the path lives in another module that isn't active (e.g. a purchased token pack). */
+export function isArtMissing(path) {
+    const id = artModuleId(path);
+    return !!id && !game.modules.get(id)?.active;
 }
 
 /**
@@ -209,14 +246,13 @@ export function applyArtFallback(payload) {
     const src = payload.texture?.src;
     const subject = payload.ring?.subject?.texture;
     if (isArtMissing(src)) {
-        payload.texture.src = FALLBACK_THRALL_ART;
-        if (payload.ring?.subject) payload.ring.subject.texture = FALLBACK_THRALL_ART;
+        applyBundledLook(payload, { portrait: false });
     } else if (isArtMissing(subject)) {
         payload.ring.subject.texture = null; // falls back to texture.src
         if (isVideoPath(src)) payload.ring.enabled = false;
     }
     const flags = payload.flags?.["necromancer-thrall-helper"];
-    if (isArtMissing(flags?.portrait)) flags.portrait = FALLBACK_THRALL_ART;
+    if (isArtMissing(flags?.portrait)) flags.portrait = BUNDLED_THRALL.portrait;
     return payload;
 }
 
@@ -224,9 +260,9 @@ export function applyArtFallback(payload) {
 export async function repairActorArt(actor) {
     if (!actor) return;
     const updates = {};
-    if (isArtMissing(actor.img)) updates.img = FALLBACK_THRALL_ART;
-    if (isArtMissing(actor.prototypeToken?.texture?.src)) updates["prototypeToken.texture.src"] = FALLBACK_THRALL_ART;
-    if (isArtMissing(actor.prototypeToken?.ring?.subject?.texture)) updates["prototypeToken.ring.subject.texture"] = FALLBACK_THRALL_ART;
+    if (isArtMissing(actor.img)) updates.img = BUNDLED_THRALL.portrait;
+    if (isArtMissing(actor.prototypeToken?.texture?.src)) updates["prototypeToken.texture.src"] = BUNDLED_THRALL.token;
+    if (isArtMissing(actor.prototypeToken?.ring?.subject?.texture)) updates["prototypeToken.ring.subject.texture"] = BUNDLED_THRALL.subject;
     if (Object.keys(updates).length) await actor.update(updates);
 }
 
@@ -305,6 +341,8 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     
     const tokenDocument = await protoActor.getTokenDocument();
     const tokenData = tokenDocument.toObject();
+    // The compendium Thrall's own art (from an optional token pack), before any preset overrides it.
+    const compendiumLook = { src: tokenData.texture?.src, subject: tokenData.ring?.subject?.texture };
 
     const customPresets = getThrallPresets(necroActor);
     const defaultPreset = { 
@@ -414,13 +452,24 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     const ringScaleFlag = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallRingScale");
     const useRing = necroActor.getFlag("necromancer-thrall-helper", "defaultRingEnabled");
     const imgScale = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallScale");
+    const useBundled = necroActor.getFlag("necromancer-thrall-helper", "useBundledDefault") === true;
 
+    // Look precedence for the plain Thrall (highest first):
+    //   1. a custom look: the user's default art (a chosen portfolio profile never reaches here)
+    //   2. the bundled art, if "use bundled default" is checked
+    //   3. the compendium Thrall's art, if its token pack is active
+    //   4. the bundled art, automatically, when that pack is not active
     if (customImg) {
         tokenData.texture.src = customImg;
         if (tokenData.ring) {
             tokenData.ring.subject = tokenData.ring.subject || {};
             tokenData.ring.subject.texture = customImg;
         }
+    } else if (useBundled || isArtMissing(compendiumLook.src)) {
+        applyBundledLook(tokenData, { forceRing: true, portrait: !portraitPath });
+    } else if (compendiumLook.src) {
+        tokenData.texture.src = compendiumLook.src;
+        if (tokenData.ring?.subject && compendiumLook.subject) tokenData.ring.subject.texture = compendiumLook.subject;
     }
 
     if (useRing !== undefined) {
