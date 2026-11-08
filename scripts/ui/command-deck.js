@@ -1,4 +1,4 @@
-import { prepareThrallPayload, getThrallPresets, resolveImagePair, tokenPortrait, isVideoPath } from "../system/thrall-manager.js";
+import { prepareThrallPayload, getThrallPresets, resolveImagePair, tokenPortrait, isVideoPath, artKind } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 
@@ -3155,15 +3155,21 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             const ringScale = actor.getFlag("necromancer-thrall-helper", `${typePrefix}RingScale`);
             const portrait = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Portrait`);
 
+            let videoArt = false;
             if (img) {
                 const pair = await resolveImagePair(img, portrait);
+                videoArt = isVideoPath(pair.art);
                 payload.texture = payload.texture || {};
                 payload.texture.src = pair.art;
                 if (payload.ring) {
                     payload.ring.subject = payload.ring.subject || {};
                     // Ring subject is image-only; null falls back to texture.src. Clear it explicitly,
                     // because the base Thrall prototype has its own subject image.
-                    payload.ring.subject.texture = isVideoPath(pair.art) ? null : pair.art;
+                    if (videoArt) {
+                        payload.ring.subject.texture = null;
+                    } else {
+                        payload.ring.subject.texture = pair.art;
+                    }
                 }
                 if (pair.portrait) {
                     foundry.utils.setProperty(payload, "flags.necromancer-thrall-helper.portrait", pair.portrait);
@@ -3173,6 +3179,10 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 payload.ring = payload.ring || {};
                 payload.ring.enabled = useRing;
             }
+            // Dynamic rings don't support animated subjects, so skip the ring for video art. This is
+            // decided on the resolved file (a wildcard can pick a webp, then a webm) and applied after
+            // the saved ring preference, which is left untouched for still images.
+            if (videoArt && payload.ring) payload.ring.enabled = false;
             if (scale !== undefined) {
                 payload.texture = payload.texture || {};
                 payload.texture.scaleX = scale;
@@ -3343,6 +3353,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 <label>Enable Token Ring:</label>
                                 <input type="checkbox" id="${key}-ring-enabled" ${c.ring ? "checked" : ""}>
                             </div>
+                            <small id="${key}-ring-hint" style="display: block; min-height: 1em; margin-bottom: 5px; color: #9ca3af;"></small>
                             <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
                                 <label>Image Scale:</label>
                                 <div style="display: flex; align-items: center; gap: 8px;">
@@ -3393,7 +3404,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             new FilePicker({
                                 type: $(evt.currentTarget).data("type") || "image",
                                 current: inputElt.val(),
-                                callback: (path) => inputElt.val(path)
+                                callback: (path) => inputElt.val(path).trigger("change")
                             }).render(true);
                         });
 
@@ -3401,6 +3412,20 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const targetId = $(evt.currentTarget).data("val-target");
                             dialogHtml.find(`#${targetId}`).text(evt.target.value);
                         });
+
+                        // Animated art can't use the dynamic ring: disable the box (keeping the saved
+                        // preference) for video art, and note it for wildcards that could pick either.
+                        const syncRingHint = (key) => {
+                            const kind = artKind(dialogHtml.find(`#${key}-img-path`).val().trim());
+                            const box = dialogHtml.find(`#${key}-ring-enabled`);
+                            const text = { video: "Dynamic token rings don't support animated art.", mixed: "Ring is skipped automatically for any video file selected." }[kind] ?? "";
+                            box.prop("disabled", kind === "video").attr("title", kind === "video" ? text : "");
+                            dialogHtml.find(`#${key}-ring-hint`).text(text);
+                        };
+                        for (const key of Object.keys(configKeys)) {
+                            dialogHtml.find(`#${key}-img-path`).on("input change", () => syncRingHint(key));
+                            syncRingHint(key);
+                        }
 
                         // Keep the ring scale slider in step with the art scale while linked.
                         const syncRing = (key) => {

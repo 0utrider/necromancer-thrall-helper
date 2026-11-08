@@ -1,4 +1,9 @@
-import { isWildcardPath, isVideoPath, listWildcardMatches } from "../system/thrall-manager.js";
+import { isWildcardPath, isVideoPath, artKind, listWildcardMatches } from "../system/thrall-manager.js";
+
+const RING_HINTS = {
+    video: "Dynamic token rings don't support animated art.",
+    mixed: "Ring is skipped automatically for any video file selected."
+};
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -165,13 +170,25 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         });
         // Each image field supports wildcards (path/thrall-*.webp), a match count,
         // a "make wildcard" button and a file picker.
+        // Animated art can't use the dynamic ring. The saved ring preference is left alone (the box
+        // is only disabled), so it still applies to still images.
+        const updateRingHint = () => {
+            const ringBox = html.querySelector("#new-thrall-ring");
+            const hint = html.querySelector("#ring-hint");
+            const kind = artKind(html.querySelector("#new-thrall-img").value.trim());
+            ringBox.disabled = kind === "video";
+            ringBox.title = kind === "video" ? RING_HINTS.video : "";
+            if (hint) hint.textContent = RING_HINTS[kind] ?? "";
+        };
+
         const imageFields = [
-            { input: "#new-thrall-img", info: "#wildcard-info", wild: "#wildcard-btn", pick: "#img-pick-btn", type: "imagevideo" },
+            { input: "#new-thrall-img", info: "#wildcard-info", wild: "#wildcard-btn", pick: "#img-pick-btn", type: "imagevideo", onChange: updateRingHint },
             { input: "#new-thrall-portrait", info: "#portrait-info", wild: "#portrait-wildcard-btn", pick: "#portrait-pick-btn", type: "image" }
         ].map(cfg => {
             const input = html.querySelector(cfg.input);
             const info = html.querySelector(cfg.info);
             const update = async () => {
+                cfg.onChange?.();
                 if (!info) return;
                 const val = input.value.trim();
                 if (!isWildcardPath(val)) {

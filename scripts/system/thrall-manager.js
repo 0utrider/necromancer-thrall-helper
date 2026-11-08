@@ -112,6 +112,16 @@ function wildcardCapture(pattern, file) {
 }
 
 /**
+ * Whether a configured art path can use the dynamic token ring: "video" (never), "mixed" (a
+ * wildcard whose extension isn't fixed, so it depends on the file picked) or "image".
+ */
+export function artKind(path) {
+    if (isVideoPath(path)) return "video";
+    if (isWildcardPath(path) && !/\.(webp|png|jpe?g|gif|avif|svg)$/i.test(path)) return "mixed";
+    return "image";
+}
+
+/**
  * Resolve token art and portrait together. When both are wildcards and the art file's `*`
  * text also exists in the portrait pattern (thrall-03.webm -> portrait-03.webp), the matching
  * portrait is used; otherwise a portrait is picked at random.
@@ -335,8 +345,12 @@ const pair = await resolveImagePair(wildcardSrc, portraitPath);
 tokenData.texture.src = pair.art;
 if (tokenData.ring?.subject) {
     if (isVideoPath(pair.art)) {
-        // The ring subject texture is image-only; null falls back to texture.src. It must be
-        // cleared explicitly because the base Thrall prototype ships with its own subject image.
+        // Dynamic rings don't support animated subjects (the subject texture is image-only and
+        // the ring shader expects a static image), so skip the ring for video art. This is decided
+        // on the resolved file: a wildcard can pick a webp on one spawn and a webm on the next.
+        // The subject texture is cleared explicitly because the base Thrall prototype ships with
+        // its own subject image.
+        tokenData.ring.enabled = false;
         tokenData.ring.subject.texture = null;
     } else if (tokenData.ring.subject.texture === wildcardSrc) {
         tokenData.ring.subject.texture = pair.art;
