@@ -1,7 +1,7 @@
 import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, isVideoPath, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
-import { notify, notifyForce } from "../system/notify.js";
+import { notify, notifyForce, placementHint } from "../system/notify.js";
 import { effectColor, effectColorNum, ownerColor, zoneBorderColor, syncAllParticleColors, EFFECT_COLOR_KEYS } from "../system/effect-colors.js";
 
 
@@ -1497,7 +1497,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             if (message.getFlag("necromancer-thrall-helper", "reactionUsed")) return notify("warn", "This reaction has already been used.");
             if (!isBleed && necroActor.getFlag("necromancer-thrall-helper", `harvested_${targetId}`)) return notify("warn", "This corpse has already been harvested.");
 
-            notifyForce("info", `Click the canvas adjacent to ${targetToken.name} to place the Blood Pool. Right-click to cancel.`);
+            placementHint(`Click the canvas adjacent to ${targetToken.name} to place the Blood Pool. Right-click to cancel.`);
             document.body.style.cursor = "crosshair"; canvas.app.view.style.cursor = "crosshair";
             
             const gridSize = canvas.scene.grid.size;
@@ -1567,7 +1567,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                             selections.push(val);
                         }
                         let currentSpawnIndex = 0;
-                        notifyForce("info", `Click the canvas to sprout Thrall 1 adjacent to the field. Right-click to cancel.`);
+                        placementHint(`Click the canvas to sprout Thrall 1 adjacent to the field. Right-click to cancel.`);
                         document.body.style.cursor = "crosshair"; canvas.app.view.style.cursor = "crosshair";
                         const ghost = new PIXI.Graphics(); ghost.beginFill(0xcc0000, 0.4); ghost.lineStyle(2, 0xff0000, 0.8); ghost.drawRect(0, 0, canvas.grid.size, canvas.grid.size); ghost.endFill(); ghost.zIndex = 1000; ghost.position.set(-1000, -1000); canvas.tokens.addChild(ghost);
                         const updateGhost = (ev) => { const pos = ev.data.getLocalPosition(canvas.app.stage); const snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos; ghost.position.set(snapped.x, snapped.y); };
@@ -1581,7 +1581,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                             if (!basePayload) { return cleanUp(); }
                             executeSpawn(foundry.utils.mergeObject(basePayload, { x: snapped.x, y: snapped.y, elevation: targetToken?.document?.elevation || attacker?.getActiveTokens()[0]?.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 } } })).catch(() => notify("error", "Failed to materialize the thrall."));
                             currentSpawnIndex++;
-                            if (currentSpawnIndex < count) { notifyForce("info", `Place Thrall ${currentSpawnIndex + 1}.`); canvas.stage.once("pointerdown", interactionHandler); }
+                            if (currentSpawnIndex < count) { placementHint(`Place Thrall ${currentSpawnIndex + 1}.`); canvas.stage.once("pointerdown", interactionHandler); }
                             else { cleanUp(); $btn.remove(); notify("info", "All blood thralls sprouted."); }
                         };
                         canvas.stage.once("pointerdown", interactionHandler);
@@ -1629,7 +1629,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                 title: "Inspire Heroic Thrall", content: `<p>Your critical strike calls a spirit to the battlefield!</p><p>Select an identity to spawn adjacent to <b>${targetToken ? targetToken.name : "the target"}</b>:</p><form><div class="form-group"><select id="heroic-preset">${optionsHtml}</select></div></form>`,
                 buttons: {
                     summon: { icon: '<i class="fas fa-magic"></i>', label: "Inspire", callback: async (dialogHtml) => {
-                        notifyForce("info", `Click the canvas adjacent to ${targetToken ? targetToken.name : "the target"} to place the thrall. Right-click to cancel.`);
+                        placementHint(`Click the canvas adjacent to ${targetToken ? targetToken.name : "the target"} to place the thrall. Right-click to cancel.`);
                         document.body.style.cursor = "crosshair"; canvas.app.view.style.cursor = "crosshair";
                         const ghost = new PIXI.Graphics(); ghost.beginFill(0xffcc00, 0.3); ghost.lineStyle(2, 0xffcc00, 0.8); ghost.drawRect(0, 0, canvas.grid.size, canvas.grid.size); ghost.endFill(); ghost.zIndex = 1000; ghost.position.set(-1000, -1000); canvas.tokens.addChild(ghost);
                         const updateGhost = (ev) => { const pos = ev.data.getLocalPosition(canvas.app.stage); const snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos; ghost.position.set(snapped.x, snapped.y); };
@@ -3084,7 +3084,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
             await actor.update({ "system.resources.focus.value": currentFocus - 1 });
 
-            notifyForce("info", "Click the canvas to place the Perfected Thrall within 60 feet. Right-click to cancel.");
+            placementHint("Click the canvas to place the Perfected Thrall within 60 feet. Right-click to cancel.");
             document.body.style.cursor = "crosshair";
             canvas.app.view.style.cursor = "crosshair";
 
@@ -3364,13 +3364,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 // Base Thrall only: the module ships its own open-license art (see assets/CREDITS.md).
                 const useBundledSaved = actor.getFlag("necromancer-thrall-helper", "useBundledDefault") === true;
                 const bundledControls = `
-                    <hr style="margin: 10px 0; border-color: #555;">
-                    <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
-                        <label title="Use the module's included thrall art as the default look, even if Paizo token packs are installed.">Use bundled default instead of compendium art:</label>
+                    <hr>
+                    <div class="form-group">
+                        <label title="Use the module's included thrall art as the default look, even if Paizo token packs are installed.">Use bundled default instead of compendium art</label>
                         <input type="checkbox" id="use-bundled-default" ${useBundledSaved ? "checked" : ""} title="Use the module's included thrall art as the default look, even if Paizo token packs are installed.">
                     </div>
-                    <small style="display: block; color: #9ca3af; margin-bottom: 5px;">A custom look set above always wins. Without Paizo token packs installed, the bundled art is used automatically.</small>
-                    <button type="button" id="use-bundled-art-btn" style="width: 100%;"><i class="fas fa-skull"></i> Use bundled art (fill the fields above)</button>
+                    <small>A custom look set above always wins. Without Paizo token packs installed, the bundled art is used automatically.</small>
+                    <button type="button" id="use-bundled-art-btn" data-tooltip="Fill the fields above with the bundled art"><i class="fas fa-skull"></i> Use bundled art</button>
                 `;
 
                 let optionsHtml = "";
@@ -3381,43 +3381,43 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     const c = getCfg(key);
                     
                     groupsHtml += `
-                        <div class="summon-cfg-group" data-target="${key}" style="display: ${key === 'thrall' ? 'block' : 'none'}; margin-top: 10px;">
-                            <div class="form-group" style="display: flex; gap: 5px; margin-bottom: 15px; align-items: center;">
-                                <label style="flex: 1;">Token Art:</label>
-                                <input type="text" id="${key}-img-path" value="${c.img}" placeholder="path/art.webp, .webm, or wildcard: path/thrall-*.webm" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
-                                <button type="button" class="img-picker-btn" data-target="${key}-img-path" data-type="imagevideo" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
+                        <div class="summon-cfg-group" data-target="${key}" style="display: ${key === 'thrall' ? 'block' : 'none'};">
+                            <div class="form-group">
+                                <label>Token Art</label>
+                                <input type="text" id="${key}-img-path" value="${c.img}" placeholder="path/art.webp, .webm, or wildcard: path/thrall-*.webm">
+                                <button type="button" class="img-picker-btn" data-target="${key}-img-path" data-type="imagevideo"><i class="fas fa-file-import"></i></button>
                             </div>
-                            <div class="form-group" style="display: flex; gap: 5px; margin-bottom: 15px; align-items: center;">
-                                <label style="flex: 1;">Portrait:</label>
-                                <input type="text" id="${key}-portrait-path" value="${c.portrait}" placeholder="Optional still image or wildcard (blank = token art)" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
-                                <button type="button" class="img-picker-btn" data-target="${key}-portrait-path" data-type="image" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
+                            <div class="form-group">
+                                <label>Portrait</label>
+                                <input type="text" id="${key}-portrait-path" value="${c.portrait}" placeholder="Optional still image or wildcard (blank = token art)">
+                                <button type="button" class="img-picker-btn" data-target="${key}-portrait-path" data-type="image"><i class="fas fa-file-import"></i></button>
                             </div>
-                            <div class="form-group" style="display: flex; gap: 5px; margin-bottom: 15px; align-items: center;">
-                                <label style="flex: 1;">Ring Subject:</label>
-                                <input type="text" id="${key}-subject-path" value="${c.ringSubject}" placeholder="Optional transparent cutout for the ring (blank = token art)" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
-                                <button type="button" class="img-picker-btn" data-target="${key}-subject-path" data-type="image" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
+                            <div class="form-group">
+                                <label>Ring Subject</label>
+                                <input type="text" id="${key}-subject-path" value="${c.ringSubject}" placeholder="Optional transparent cutout for the ring (blank = token art)">
+                                <button type="button" class="img-picker-btn" data-target="${key}-subject-path" data-type="image"><i class="fas fa-file-import"></i></button>
                             </div>
-                            <div class="form-group" style="display: flex; justify-content: space-between; margin-bottom: 5px; align-items: center;">
-                                <label>Enable Token Ring:</label>
+                            <div class="form-group">
+                                <label>Enable Token Ring</label>
                                 <input type="checkbox" id="${key}-ring-enabled" ${c.ring ? "checked" : ""}>
                             </div>
-                            <small id="${key}-ring-hint" style="display: block; min-height: 1em; margin-bottom: 5px; color: #9ca3af;"></small>
-                            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
-                                <label>Image Scale:</label>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="range" class="scale-slider" id="${key}-img-scale" data-val-target="${key}-scale-val" min="0.25" max="5" step="0.05" value="${c.scale}" style="width: 100px;">
-                                    <input type="number" min="0.25" max="5" step="0.05" value="${c.scale}" style="width: 58px; text-align: right; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;" id="${key}-scale-val" class="scale-num" data-slider="${key}-img-scale" title="Type an exact value">
+                            <small id="${key}-ring-hint"></small>
+                            <div class="form-group">
+                                <label>Image Scale</label>
+                                <div class="scale-wrap">
+                                    <input type="range" class="scale-slider" id="${key}-img-scale" data-val-target="${key}-scale-val" min="0.25" max="5" step="0.05" value="${c.scale}">
+                                    <input type="number" min="0.25" max="5" step="0.05" value="${c.scale}" id="${key}-scale-val" class="scale-num" data-slider="${key}-img-scale" title="Type an exact value">
                                 </div>
                             </div>
-                            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
-                                <label>Ring Subject Scale:</label>
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="range" class="scale-slider" id="${key}-ring-scale" data-val-target="${key}-ring-scale-val" min="0.5" max="5" step="0.05" value="${c.ringScale ?? c.scale}" style="width: 100px;" ${c.ringScale === undefined ? "disabled" : ""}>
-                                    <input type="number" min="0.5" max="5" step="0.05" value="${c.ringScale ?? c.scale}" style="width: 58px; text-align: right; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;" id="${key}-ring-scale-val" class="scale-num" data-slider="${key}-ring-scale" title="Type an exact value" ${c.ringScale === undefined ? "disabled" : ""}>
+                            <div class="form-group">
+                                <label>Ring Subject Scale</label>
+                                <div class="scale-wrap">
+                                    <input type="range" class="scale-slider" id="${key}-ring-scale" data-val-target="${key}-ring-scale-val" min="0.5" max="5" step="0.05" value="${c.ringScale ?? c.scale}" ${c.ringScale === undefined ? "disabled" : ""}>
+                                    <input type="number" min="0.5" max="5" step="0.05" value="${c.ringScale ?? c.scale}" id="${key}-ring-scale-val" class="scale-num" data-slider="${key}-ring-scale" title="Type an exact value" ${c.ringScale === undefined ? "disabled" : ""}>
                                 </div>
                             </div>
-                            <div class="form-group" style="display: flex; justify-content: space-between; margin-top: 3px;">
-                                <label>Ring scale matches art scale:</label>
+                            <div class="form-group">
+                                <label>Ring scale matches art scale</label>
                                 <input type="checkbox" id="${key}-ring-link" ${c.ringScale === undefined ? "checked" : ""}>
                             </div>
                             ${key === "thrall" ? bundledControls : ""}
@@ -3426,10 +3426,10 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 }
 
                 const formHtml = `
-                    <form autocomplete="off" style="margin-bottom: 10px;">
-                        <p>Configure default appearances for your summoned entities.</p>
+                    <form autocomplete="off">
+                        <p>Default appearance for each summon type.</p>
                         <div class="form-group">
-                            <label>Entity Setup:</label>
+                            <label>Summon</label>
                             <select id="summon-type-selector">${optionsHtml}</select>
                         </div>
                         ${groupsHtml}
@@ -3437,9 +3437,12 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 `;
 
                 new Dialog({
-                    title: "Default Summon Config",
+                    title: "Default Thrall Look",
                     content: formHtml,
                     render: (dialogHtml) => {
+                        const app = dialogHtml.closest(".app, .window-app");
+                        app.removeClass("theme-light").addClass("theme-dark");
+                        app.find(".window-title").prepend('<i class="fas fa-image" style="margin-right: 6px;"></i>');
                         dialogHtml.find("#summon-type-selector").on("change", (evt) => {
                             const selected = evt.target.value;
                             dialogHtml.find(".summon-cfg-group").hide();
@@ -3518,7 +3521,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     buttons: {
                         save: {
                             icon: '<i class="fas fa-save"></i>',
-                            label: "Save All Configs",
+                            label: "Save",
                             callback: async (dialogHtml) => {
                                 let updates = {};
                                 for (const [key, map] of Object.entries(configKeys)) {
@@ -3537,11 +3540,10 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 await actor.update(updates);
                                 notify("info", "Summon configurations updated successfully.");
                             }
-                        },
-                        cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
+                        }
                     },
                     default: "save"
-                }).render(true);
+                }, { classes: ["dialog", "necro-look", "necro-dark"], width: 380 }).render(true);
             });
         }
 
@@ -3644,7 +3646,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
                     },
                     default: "save"
-                }, { classes: ["dialog", "necro-settings"], width: 400 }).render(true);
+                }, { classes: ["dialog", "necro-settings", "necro-dark"], width: 400 }).render(true);
             });
         }
 
@@ -3667,7 +3669,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 let currentSpawnIndex = 0;
                 const maxSpawns = 5;
 
-                notifyForce("info", `Click the canvas to place Skeletal Lancer 1 of ${maxSpawns} within 60 feet. Right-click to finish early.`);
+                placementHint(`Click the canvas to place Skeletal Lancer 1 of ${maxSpawns} within 60 feet. Right-click to finish early.`);
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -3761,7 +3763,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     await executeSpawn(finalPayload).catch(err => console.error(err));
 
                     if (currentSpawnIndex < maxSpawns) {
-                        notifyForce("info", `Place Skeletal Lancer ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
+                        placementHint(`Place Skeletal Lancer ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
                         canvas.stage.once("pointerdown", interactionHandler);
                     } else {
                         cleanUp();
@@ -3796,7 +3798,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                 }
 
-                notifyForce("info", "Click the canvas within 60 feet (even on occupied spaces) to manifest the Nightmare. Right-click to cancel.");
+                placementHint("Click the canvas within 60 feet (even on occupied spaces) to manifest the Nightmare. Right-click to cancel.");
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -3993,7 +3995,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             }
 
             let currentSpawn = 0;
-            notifyForce("info", `Click to place Thrall 1 of ${maxSpawns}. Right-click to stop early.`);
+            placementHint(`Click to place Thrall 1 of ${maxSpawns}. Right-click to stop early.`);
             document.body.style.cursor = "crosshair";
             canvas.app.view.style.cursor = "crosshair";
 
@@ -4134,7 +4136,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     const graveyardActor = await getOrImportActor("Living Graveyard");
                     if (!graveyardActor) { this._isPlacingGraveyard = false; return; }
     
-                    notifyForce("info", "Click to place the Living Graveyard within 120 feet. Right-click to cancel.");
+                    placementHint("Click to place the Living Graveyard within 120 feet. Right-click to cancel.");
                     document.body.style.cursor = "crosshair";
                     canvas.app.view.style.cursor = "crosshair";
     
@@ -4381,7 +4383,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 let currentSpawnIndex = 0;
                                 const maxSpawns = 20;
 
-                                notifyForce("info", `Click to place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop early.`);
+                                placementHint(`Click to place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop early.`);
                                 document.body.style.cursor = "crosshair";
                                 canvas.app.view.style.cursor = "crosshair";
 
@@ -4445,7 +4447,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     executeSpawn(finalPayload).catch(err => console.error(err));
 
                                     if (currentSpawnIndex < maxSpawns) {
-                                        notifyForce("info", `Place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
+                                        placementHint(`Place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
                                         canvas.stage.once("pointerdown", interactionHandler);
                                     } else {
                                         cleanUp();
@@ -4513,7 +4515,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                 await actor.update({ "system.resources.focus.value": currentFocus - 1 });
 
-                notifyForce("info", "Click the canvas within 120 feet to release the swarm. Right-click to cancel.");
+                placementHint("Click the canvas within 120 feet to release the swarm. Right-click to cancel.");
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -4752,7 +4754,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const gridDist = canvas.scene.grid.distance;
                 const gridSize = canvas.scene.grid.size;
 
-                notifyForce("info", "Click the canvas to Sustain and move the Zombie Horde. Right-click to cancel.");
+                placementHint("Click the canvas to Sustain and move the Zombie Horde. Right-click to cancel.");
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -5553,7 +5555,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                                 <p style="margin: 5px 0 0 0; font-size: 0.85em; font-style: italic; color: #aaa;">Special abilities and Strike side-effects are disabled by the ritual.</p>
                                             </div>`;
 
-                                            notifyForce("info", "Click an adjacent space to spawn the Reanimated Foe.");
+                                            placementHint("Click an adjacent space to spawn the Reanimated Foe.");
                                             document.body.style.cursor = "crosshair";
                                             canvas.app.view.style.cursor = "crosshair";
 
@@ -6041,7 +6043,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
                                         
                                         await tsunamiSpell.toMessage(e);
-                                        notifyForce("info", "Draw your 60-foot cone starting from the marked origin point.");
+                                        placementHint("Draw your 60-foot cone starting from the marked origin point.");
                                     }
                                 },
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -7515,7 +7517,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
 
                                         await spearSpell.toMessage(e);
-                                        notifyForce("info", "Draw your 15-foot line starting from the marked origin point.");
+                                        placementHint("Draw your 15-foot line starting from the marked origin point.");
                                     }
                                 },
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -7770,7 +7772,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
                                     
                                         await bombSpell.toMessage(e);
-                                        notifyForce("info", `Click the Emanation button in chat and center it on the Bomb marker.`);
+                                        placementHint(`Click the Emanation button in chat and center it on the Bomb marker.`);
                                     }
                                 },
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -8121,7 +8123,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
                                         
                                         await barrageSpell.toMessage(e);
-                                        notifyForce("info", "Draw your 30-foot cone starting from the marked origin point.");
+                                        placementHint("Draw your 30-foot cone starting from the marked origin point.");
                                     }
                                 },
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -8404,7 +8406,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                                 let currentSpawnIndex = 0;
 
-                                notifyForce("info", `Click the canvas to place Summon ${currentSpawnIndex + 1}. Right-click to cancel.`);
+                                placementHint(`Click the canvas to place Summon ${currentSpawnIndex + 1}. Right-click to cancel.`);
                                 document.body.style.cursor = "crosshair";
                                 canvas.app.view.style.cursor = "crosshair";
 
@@ -8523,7 +8525,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     });
 
                                     if (currentSpawnIndex < count) {
-                                        notifyForce("info", `Place Summon ${currentSpawnIndex + 1}.`);
+                                        placementHint(`Place Summon ${currentSpawnIndex + 1}.`);
                                         canvas.stage.once("pointerdown", interactionHandler);
                                     } else {
                                         cleanUp();
@@ -8563,7 +8565,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const bonusHP = Math.max(0, spellRank - 4) * 10;
                 const totalHP = 40 + bonusHP;
 
-                notifyForce("info", `Click the canvas to place the Huge Conglomerate within 30 feet. Right-click to cancel.`);
+                placementHint(`Click the canvas to place the Huge Conglomerate within 30 feet. Right-click to cancel.`);
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -8744,7 +8746,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 await tendrilsSpell.setFlag("aoe-easy-resolve", "saveType", "reflex");
 
                 let currentSpawnIndex = 0;
-                notifyForce("info", `Click the canvas to place Tendril ${currentSpawnIndex + 1} within 30 feet. Right-click to cancel.`);
+                placementHint(`Click the canvas to place Tendril ${currentSpawnIndex + 1} within 30 feet. Right-click to cancel.`);
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -8898,7 +8900,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     await executeHazard(regionData, drawingData);
 
                     if (currentSpawnIndex < count) {
-                        notifyForce("info", `Place Tendril ${currentSpawnIndex + 1}.`);
+                        placementHint(`Place Tendril ${currentSpawnIndex + 1}.`);
                         canvas.stage.once("pointerdown", interactionHandler);
                     } else {
                         cleanUp();
