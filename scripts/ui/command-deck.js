@@ -1,4 +1,4 @@
-import { prepareThrallPayload, getThrallPresets, resolveImagePair, tokenPortrait } from "../system/thrall-manager.js";
+import { prepareThrallPayload, getThrallPresets, resolveImagePair, tokenPortrait, isVideoPath } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 
@@ -3161,7 +3161,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 payload.texture.src = pair.art;
                 if (payload.ring) {
                     payload.ring.subject = payload.ring.subject || {};
-                    payload.ring.subject.texture = pair.art;
+                    // Ring subject is image-only; null falls back to texture.src. Clear it explicitly,
+                    // because the base Thrall prototype has its own subject image.
+                    payload.ring.subject.texture = isVideoPath(pair.art) ? null : pair.art;
                 }
                 if (pair.portrait) {
                     foundry.utils.setProperty(payload, "flags.necromancer-thrall-helper.portrait", pair.portrait);

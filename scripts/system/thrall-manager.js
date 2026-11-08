@@ -94,11 +94,12 @@ export async function resolveImagePath(path) {
     return pick;
 }
 
-const VIDEO_EXT = /\.(webm|mp4|m4v)$/i;
+const VIDEO_EXT = /\.(webm|mp4|m4v|ogv)$/i;
 
 /** True for video paths (including wildcard patterns such as `art/thrall-*.webm`). */
 export function isVideoPath(path) {
-    return typeof path === "string" && VIDEO_EXT.test(path);
+    if (typeof path !== "string") return false;
+    return foundry.helpers?.media?.VideoHelper?.hasVideoExtension?.(path) ?? VIDEO_EXT.test(path);
 }
 
 function wildcardCapture(pattern, file) {
@@ -332,8 +333,14 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
 const wildcardSrc = tokenData.texture?.src;
 const pair = await resolveImagePair(wildcardSrc, portraitPath);
 tokenData.texture.src = pair.art;
-if (tokenData.ring?.subject?.texture === wildcardSrc) {
-    tokenData.ring.subject.texture = pair.art;
+if (tokenData.ring?.subject) {
+    if (isVideoPath(pair.art)) {
+        // The ring subject texture is image-only; null falls back to texture.src. It must be
+        // cleared explicitly because the base Thrall prototype ships with its own subject image.
+        tokenData.ring.subject.texture = null;
+    } else if (tokenData.ring.subject.texture === wildcardSrc) {
+        tokenData.ring.subject.texture = pair.art;
+    }
 }
 if (pair.portrait) {
     foundry.utils.setProperty(tokenData, "flags.necromancer-thrall-helper.portrait", pair.portrait);
