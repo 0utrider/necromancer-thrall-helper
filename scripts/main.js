@@ -1,6 +1,7 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
 import { setupHooks } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
+import { notify, notifyForce } from "./system/notify.js";
 
 Hooks.once("setup", function () {
     if (!setupSocket()) {
@@ -45,6 +46,21 @@ Hooks.once("init", () => {
         type: Boolean,
         default: true
     });
+
+    game.settings.register("necromancer-thrall-helper", "notificationLevel", {
+        name: "Notification Level",
+        hint: "Which pop-up messages to show you. Placement instructions and permission problems always show. Suppressed messages are still written to the console.",
+        scope: "client",
+        config: true,
+        type: String,
+        choices: {
+            all: "All messages",
+            important: "Warnings and errors (default)",
+            errors: "Errors only",
+            none: "None"
+        },
+        default: "important"
+    });
 });
 
 Hooks.once("ready", () => {
@@ -79,7 +95,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
             }
 
             if (!isNecro) {
-                return ui.notifications.warn("You lack the dark blood and discipline required to command the dead.");
+                return notifyForce("warn", "You lack the dark blood and discipline required to command the dead.");
             }
             try {
                 const existing = foundry.applications.instances.get("thrall-command-deck");

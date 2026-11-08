@@ -1,3 +1,4 @@
+import { notify, notifyForce } from "./notify.js";
 
 export function setupHooks() {
     console.log("Necromancer Thrall Helper | Thrall management hooks standing by.");
@@ -84,7 +85,7 @@ export async function resolveImagePath(path) {
     if (!isWildcardPath(path)) return path;
     const matches = await listWildcardMatches(path);
     if (matches.length === 0) {
-        ui.notifications.warn(`No images match "${path}". Using the default thrall icon.`);
+        notify("warn", `No images match "${path}". Using the default thrall icon.`);
         return FALLBACK_IMG;
     }
     const last = lastWildcardPick.get(path);
@@ -307,14 +308,14 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     if (!protoActor) {
         const pack = game.packs.get("necromancer-thrall-helper.necro-thralls");
         if (!pack) {
-            ui.notifications.error("Could not find the Necromancer Thralls compendium pack.");
+            notifyForce("error", "Could not find the Necromancer Thralls compendium pack.");
             return null;
         }
 
         const index = await pack.getIndex();
         const thrallEntry = index.find(a => a.name === "Thrall");
         if (!thrallEntry) {
-            ui.notifications.error("Could not find the 'Thrall' actor in the compendium.");
+            notify("error", "Could not find the 'Thrall' actor in the compendium.");
             return null;
         }
 

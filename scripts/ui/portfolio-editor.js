@@ -1,4 +1,5 @@
 import { isWildcardPath, isVideoPath, artKind, listWildcardMatches } from "../system/thrall-manager.js";
+import { notify } from "../system/notify.js";
 
 const RING_HINTS = {
     video: "Dynamic token rings don't support animated art. Set a Ring Subject image to use the ring.",
@@ -68,11 +69,11 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 e.preventDefault();
                 const customFamily = this.actor.getFlag("necromancer-thrall-helper", "familyTree") || [];
                 if (customFamily.length === 0) {
-                    return ui.notifications.warn("Your portfolio is empty. Nothing to export!");
+                    return notify("warn", "Your portfolio is empty. Nothing to export!");
                 }
                 const safeName = (this.actor.name || "necromancer").replace(/[^a-z0-9]/gi, "_").toLowerCase();
                 saveDataToFile(JSON.stringify(customFamily, null, 2), "application/json", `${safeName}_thrall_portfolio.json`);
-                ui.notifications.info("Thrall Portfolio exported.");
+                notify("info", "Thrall Portfolio exported.");
             });
         }
 
@@ -94,12 +95,12 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                         if (valid.length === 0) throw new Error("No valid thrall presets found in file.");
 
                         await this.actor.setFlag("necromancer-thrall-helper", "familyTree", valid);
-                        ui.notifications.info(`Imported ${valid.length} thrall preset(s) into ${this.actor.name}'s portfolio!`);
+                        notify("info", `Imported ${valid.length} thrall preset(s) into ${this.actor.name}'s portfolio!`);
                         this.resetForm(html);
                         this.render(true);
                     } catch (err) {
                         console.error("Necromancer Helper | Portfolio Import Error:", err);
-                        ui.notifications.error("Failed to import portfolio: Invalid JSON file.");
+                        notify("error", "Failed to import portfolio: Invalid JSON file.");
                     }
                 });
                 input.click();
@@ -129,9 +130,9 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
             e.preventDefault();
             if (this.actor.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId")) {
                 await this.actor.unsetFlag("necromancer-thrall-helper", "defaultFamilyEntryId");
-                ui.notifications.info("Default thrall reset: the plain Default Thrall is used again.");
+                notify("info", "Default thrall reset: the plain Default Thrall is used again.");
             } else {
-                ui.notifications.info("No profile is set as the default thrall.");
+                notify("info", "No profile is set as the default thrall.");
             }
             html.querySelector("#new-thrall-default").checked = false;
             this.render(true);
@@ -233,7 +234,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 if (!val || isWildcardPath(val)) return;
                 const wild = val.replace(/\d+(\.[^./]+)$/, "*$1");
                 if (wild === val) {
-                    return ui.notifications.warn("Couldn't find a number to replace. Type a pattern like path/thrall-*.webp instead.");
+                    return notify("warn", "Couldn't find a number to replace. Type a pattern like path/thrall-*.webp instead.");
                 }
                 input.value = wild;
                 update();
@@ -307,7 +308,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 const ringScale = parseFloat(html.querySelector("#new-thrall-ring-scale").value);
 
                 if (!name) {
-                    ui.notifications.warn("A thrall name is required.");
+                    notify("warn", "A thrall name is required.");
                     return;
                 }
 
@@ -316,7 +317,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 } else if (isWildcardPath(img)) {
                     // A HEAD request can't resolve a wildcard; check for matches instead.
                     if ((await listWildcardMatches(img)).length === 0) {
-                        ui.notifications.warn(`No images match "${img}" yet. The default icon is used until some exist.`);
+                        notify("warn", `No images match "${img}" yet. The default icon is used until some exist.`);
                     }
                 } else {
                     try {
@@ -331,36 +332,36 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 if (portrait) {
                     if (isVideoPath(portrait)) {
-                        ui.notifications.warn("Portraits must be still images. Animated files can only be used for token art.");
+                        notify("warn", "Portraits must be still images. Animated files can only be used for token art.");
                         portrait = "";
                     } else if (isWildcardPath(portrait)) {
                         if ((await listWildcardMatches(portrait)).length === 0) {
-                            ui.notifications.warn(`No portraits match "${portrait}" yet. The token art is used until some exist.`);
+                            notify("warn", `No portraits match "${portrait}" yet. The token art is used until some exist.`);
                         }
                     } else {
                         try {
                             const response = await fetch(portrait, { method: "HEAD" });
                             if (!response.ok) throw new Error("missing");
                         } catch (err) {
-                            ui.notifications.warn(`Portrait "${portrait}" was not found. Using the token art instead.`);
+                            notify("warn", `Portrait "${portrait}" was not found. Using the token art instead.`);
                             portrait = "";
                         }
                     }
                 }
                 if (ringSubject) {
                     if (isVideoPath(ringSubject)) {
-                        ui.notifications.warn("The ring subject must be a still image (ideally a transparent cutout).");
+                        notify("warn", "The ring subject must be a still image (ideally a transparent cutout).");
                         ringSubject = "";
                     } else if (isWildcardPath(ringSubject)) {
                         if ((await listWildcardMatches(ringSubject)).length === 0) {
-                            ui.notifications.warn(`No ring subjects match "${ringSubject}" yet.`);
+                            notify("warn", `No ring subjects match "${ringSubject}" yet.`);
                         }
                     } else {
                         try {
                             const response = await fetch(ringSubject, { method: "HEAD" });
                             if (!response.ok) throw new Error("missing");
                         } catch (err) {
-                            ui.notifications.warn(`Ring subject "${ringSubject}" was not found and was skipped.`);
+                            notify("warn", `Ring subject "${ringSubject}" was not found and was skipped.`);
                             ringSubject = "";
                         }
                     }
@@ -398,7 +399,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 } else {
                     const newId = name.toLowerCase().replace(/[^a-z0-9]/g, "-");
                     if (customFamily.find(p => p.id === newId)) {
-                        ui.notifications.warn("A thrall with a similar name already exists in the portfolio.");
+                        notify("warn", "A thrall with a similar name already exists in the portfolio.");
                         return;
                     }
 

@@ -1,6 +1,7 @@
 import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
+import { notify, notifyForce } from "../system/notify.js";
 
 
 globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
@@ -587,7 +588,7 @@ Hooks.on("preDeleteToken", (tokenDoc, options, userId) => {
             }
         }, 50);
         
-        ui.notifications.info("The Perfected Thrall endures the sacrifice, losing 20 HP instead!");
+        notify("info", "The Perfected Thrall endures the sacrifice, losing 20 HP instead!");
         return false;
     }
 });
@@ -936,7 +937,7 @@ Hooks.on("createChatMessage", async (message) => {
             }
         }
 
-        if (spiritHeal === 0) return ui.notifications.info("Draining Strike hit, but the target resisted all Spirit damage. No healing granted.");
+        if (spiritHeal === 0) return notify("info", "Draining Strike hit, but the target resisted all Spirit damage. No healing granted.");
 
         const necroToken = canvas.tokens.get(message.speaker?.token) || actor.getActiveTokens()[0];
         const gridDist = canvas.scene?.grid?.distance || 5;
@@ -951,7 +952,7 @@ Hooks.on("createChatMessage", async (message) => {
         });
 
         if (availableThralls.length < requiredThralls) {
-            return ui.notifications.error(`Draining Strike requires ${requiredThralls} thrall(s) within 10ft of you or the target, but only found ${availableThralls.length}.`);
+            return notify("error", `Draining Strike requires ${requiredThralls} thrall(s) within 10ft of you or the target, but only found ${availableThralls.length}.`);
         }
 
         const checkboxes = availableThralls.map((t, index) => `
@@ -972,7 +973,7 @@ Hooks.on("createChatMessage", async (message) => {
                     const selectedIds = [];
                     dialogHtml.find('.drain-checkbox:checked').each((i, cb) => selectedIds.push(cb.value));
 
-                    if (selectedIds.length !== requiredThralls) return ui.notifications.warn(`You must select exactly ${requiredThralls} thrall(s). Action aborted.`);
+                    if (selectedIds.length !== requiredThralls) return notify("warn", `You must select exactly ${requiredThralls} thrall(s). Action aborted.`);
 
                     const tokensToDelete = selectedIds.map(id => canvas.tokens.get(id));
                     const names = tokensToDelete.map(t => t.name).join(", ");
@@ -997,7 +998,7 @@ Hooks.on("createChatMessage", async (message) => {
                 dialogHtml.find('.drain-checkbox').on('change', function() {
                     if (dialogHtml.find('.drain-checkbox:checked').length > requiredThralls) {
                         this.checked = false;
-                        ui.notifications.warn(`You only need to sacrifice ${requiredThralls} thrall(s).`);
+                        notify("warn", `You only need to sacrifice ${requiredThralls} thrall(s).`);
                     }
                 });
             }
@@ -1421,10 +1422,10 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             const size = $btn.attr('data-size');
             const attacker = game.actors.get(necroActorId);
             const targetToken = canvas.tokens.get(targetId);
-            if (!attacker || !targetToken) return ui.notifications.warn("Could not locate the Necromancer or the corpse.");
-            if (attacker.getFlag("necromancer-thrall-helper", `harvested_${targetId}`) || message.getFlag("necromancer-thrall-helper", "reactionUsed")) return ui.notifications.warn("This corpse has already been harvested.");
+            if (!attacker || !targetToken) return notify("warn", "Could not locate the Necromancer or the corpse.");
+            if (attacker.getFlag("necromancer-thrall-helper", `harvested_${targetId}`) || message.getFlag("necromancer-thrall-helper", "reactionUsed")) return notify("warn", "This corpse has already been harvested.");
             const presets = typeof getThrallPresets === "function" ? getThrallPresets(attacker) : [];
-            if (presets.length === 0) return ui.notifications.warn("No thrall presets found.");
+            if (presets.length === 0) return notify("warn", "No thrall presets found.");
             let optionsHtml = `<option value="default">${defaultThrallLabel(attacker)}</option>` + '<option value="random">(Random Family Member)</option>';
             presets.forEach(p => { optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attacker.id && t.name === p.name)) ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>` : `<option value="${p.id}">${p.name}</option>`; });
             new Dialog({
@@ -1440,8 +1441,8 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                         }
                         const basePayload = await prepareThrallPayload(attacker, dialogHtml[0].querySelector("#inevitable-preset").value);
                         if (!basePayload) return;
-                        executeSpawn(foundry.utils.mergeObject(basePayload, { x: targetToken.x, y: targetToken.y, elevation: targetToken.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 }, system: { traits: { size: { value: size } } } } })).catch(() => ui.notifications.error("Failed to materialize the corpse thrall."));
-                        ui.notifications.info("The corpse yields its thrall.");
+                        executeSpawn(foundry.utils.mergeObject(basePayload, { x: targetToken.x, y: targetToken.y, elevation: targetToken.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 }, system: { traits: { size: { value: size } } } } })).catch(() => notify("error", "Failed to materialize the corpse thrall."));
+                        notify("info", "The corpse yields its thrall.");
                     }}, cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                 }, default: "summon"
             }).render(true);
@@ -1453,7 +1454,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             if (!canvas.scene || !masterActor) return;
             const gridSize = canvas.scene.grid.size, hazardId = foundry.utils.randomID();
             const hazardResult = await executeHazard({ name: "Gory Remains", color: "#4b5563", shapes: [{ type: "rectangle", hole: false, x: tX, y: tY, width: tW * gridSize, height: tH * gridSize, rotation: 0 }], elevation: { bottom: -1000, top: 1000 }, behaviors: [{ name: "Gory Difficult Terrain", type: "modifyMovementCost", system: {} }], flags: { "necromancer-thrall-helper": { isFleshTerrain: true, hazardId: hazardId } } }, { author: game.user.id, shape: { type: "r", width: tW * gridSize, height: tH * gridSize }, x: tX, y: tY, hidden: true, flags: { "necromancer-thrall-helper": { hazardId: hazardId } } });
-            if (!hazardResult?.regionId) return ui.notifications.error("Failed to place Gory Remains. Check GM socket.");
+            if (!hazardResult?.regionId) return notify("error", "Failed to place Gory Remains. Check GM socket.");
             await masterActor.createEmbeddedDocuments("Item", [{ name: "Hazard: Gory Remains", type: "effect", img: "icons/magic/symbols/runes-star-orange.webp", system: { description: { value: "Tracks the duration of a Gory Remains difficult terrain hazard. Deleting this will clear the hazard from the map." }, duration: { value: 10, unit: "minutes", expiry: "turn-start" } }, flags: { "necromancer-thrall-helper": { isHazardTracker: true, hazardId: hazardId, sceneId: canvas.scene.id } } }]);
             $btn.closest('div').html(`<p style="margin: 4px 0 0 0; text-align: center; color: #9ca3af; font-style: italic; font-size: 0.9em;"><i class="fas fa-check"></i> Gory Remains Placed</p>`);
         }
@@ -1462,10 +1463,10 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             e.preventDefault();
             const isBleed = $btn.attr("data-is-bleed") === "true", targetId = $btn.attr("data-target-id"), necroActor = game.actors.get($btn.attr("data-necro-id")), targetToken = canvas.tokens.get(targetId);
             if (!necroActor || !targetToken || !canvas.scene) return;
-            if (message.getFlag("necromancer-thrall-helper", "reactionUsed")) return ui.notifications.warn("This reaction has already been used.");
-            if (!isBleed && necroActor.getFlag("necromancer-thrall-helper", `harvested_${targetId}`)) return ui.notifications.warn("This corpse has already been harvested.");
+            if (message.getFlag("necromancer-thrall-helper", "reactionUsed")) return notify("warn", "This reaction has already been used.");
+            if (!isBleed && necroActor.getFlag("necromancer-thrall-helper", `harvested_${targetId}`)) return notify("warn", "This corpse has already been harvested.");
 
-            ui.notifications.info(`Click the canvas adjacent to ${targetToken.name} to place the Blood Pool. Right-click to cancel.`);
+            notifyForce("info", `Click the canvas adjacent to ${targetToken.name} to place the Blood Pool. Right-click to cancel.`);
             document.body.style.cursor = "crosshair"; canvas.app.view.style.cursor = "crosshair";
             
             const gridSize = canvas.scene.grid.size;
@@ -1480,12 +1481,12 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             
             const interactionHandler = async (ev) => {
                 if (ev.data.button !== 0 && ev.data.button !== 2) return canvas.stage.once("pointerdown", interactionHandler);
-                if (ev.data.button === 2) { ui.notifications.info("Blood Pool placement cancelled."); return cleanUp(); }
+                if (ev.data.button === 2) { notify("info", "Blood Pool placement cancelled."); return cleanUp(); }
                 
                 const pos = ev.data.getLocalPosition(canvas.app.stage), snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos;
                 const dist = (Math.max(Math.abs((targetToken.x + (targetToken.document.width * gridSize) / 2) - (snapped.x + (gridSize / 2))), Math.abs((targetToken.y + (targetToken.document.height * gridSize) / 2) - (snapped.y + (gridSize / 2)))) / gridSize) * (canvas.scene?.grid?.distance || 5);
                 
-                if (dist > 15) { ui.notifications.warn("The Blood Pool must be placed adjacent to the corpse!"); return canvas.stage.once("pointerdown", interactionHandler); }
+                if (dist > 15) { notify("warn", "The Blood Pool must be placed adjacent to the corpse!"); return canvas.stage.once("pointerdown", interactionHandler); }
                 
                 cleanUp();
 
@@ -1509,7 +1510,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                     } 
                 }, 60000);
                 
-                ui.notifications.info("Blood Pool materialized on the battlefield.");
+                notify("info", "Blood Pool materialized on the battlefield.");
             };
             canvas.stage.once("pointerdown", interactionHandler);
         }
@@ -1517,9 +1518,9 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
         else if ($btn.hasClass('gore-spawn-btn')) {
             e.preventDefault();
             const count = parseInt($btn.attr('data-count'), 10), targetToken = canvas.tokens.get($btn.attr('data-target-id')), attacker = game.user.character || canvas.tokens.controlled[0]?.actor;
-            if (!attacker) return ui.notifications.warn("No Necromancer found to command the thralls!");
+            if (!attacker) return notify("warn", "No Necromancer found to command the thralls!");
             const presets = typeof getThrallPresets === "function" ? getThrallPresets(attacker) : [];
-            if (presets.length === 0) return ui.notifications.warn("No thrall presets found.");
+            if (presets.length === 0) return notify("warn", "No thrall presets found.");
             let optionsHtml = `<option value="default">${defaultThrallLabel(attacker)}</option>` + '<option value="random">(Random Family Member)</option>';
             presets.forEach(p => { optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attacker.id && t.name === p.name)) ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>` : `<option value="${p.id}">${p.name}</option>`; });
             let formHtml = `<form><p>Select the identities for the <b>${count}</b> new thrall(s) spawned near <b>${targetToken ? targetToken.name : "the field"}</b>:</p>`;
@@ -1531,11 +1532,11 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                         let selections = [], selectedUnique = new Set();
                         for (let i = 0; i < count; i++) {
                             const val = dialogHtml[0].querySelector(`#gore-preset-${i}`).value, preset = presets.find(p => p.id === val);
-                            if (preset?.isUnique) { if (selectedUnique.has(val)) return ui.notifications.error(`${preset.name} is unique and cannot be summoned multiple times.`); selectedUnique.add(val); }
+                            if (preset?.isUnique) { if (selectedUnique.has(val)) return notify("error", `${preset.name} is unique and cannot be summoned multiple times.`); selectedUnique.add(val); }
                             selections.push(val);
                         }
                         let currentSpawnIndex = 0;
-                        ui.notifications.info(`Click the canvas to sprout Thrall 1 adjacent to the field. Right-click to cancel.`);
+                        notifyForce("info", `Click the canvas to sprout Thrall 1 adjacent to the field. Right-click to cancel.`);
                         document.body.style.cursor = "crosshair"; canvas.app.view.style.cursor = "crosshair";
                         const ghost = new PIXI.Graphics(); ghost.beginFill(0xcc0000, 0.4); ghost.lineStyle(2, 0xff0000, 0.8); ghost.drawRect(0, 0, canvas.grid.size, canvas.grid.size); ghost.endFill(); ghost.zIndex = 1000; ghost.position.set(-1000, -1000); canvas.tokens.addChild(ghost);
                         const updateGhost = (ev) => { const pos = ev.data.getLocalPosition(canvas.app.stage); const snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos; ghost.position.set(snapped.x, snapped.y); };
@@ -1543,14 +1544,14 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                         const cleanUp = () => { document.body.style.cursor = ""; canvas.app.view.style.cursor = ""; canvas.stage.off("pointermove", updateGhost); ghost.destroy(); };
                         const interactionHandler = async (ev) => {
                             if (ev.data.button !== 0 && ev.data.button !== 2) return canvas.stage.once("pointerdown", interactionHandler);
-                            if (ev.data.button === 2) { ui.notifications.info("Sprouting cancelled."); return cleanUp(); }
+                            if (ev.data.button === 2) { notify("info", "Sprouting cancelled."); return cleanUp(); }
                             const pos = ev.data.getLocalPosition(canvas.app.stage), snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos;
                             const basePayload = await prepareThrallPayload(attacker, selections[currentSpawnIndex]);
                             if (!basePayload) { return cleanUp(); }
-                            executeSpawn(foundry.utils.mergeObject(basePayload, { x: snapped.x, y: snapped.y, elevation: targetToken?.document?.elevation || attacker?.getActiveTokens()[0]?.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 } } })).catch(() => ui.notifications.error("Failed to materialize the thrall."));
+                            executeSpawn(foundry.utils.mergeObject(basePayload, { x: snapped.x, y: snapped.y, elevation: targetToken?.document?.elevation || attacker?.getActiveTokens()[0]?.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 } } })).catch(() => notify("error", "Failed to materialize the thrall."));
                             currentSpawnIndex++;
-                            if (currentSpawnIndex < count) { ui.notifications.info(`Place Thrall ${currentSpawnIndex + 1}.`); canvas.stage.once("pointerdown", interactionHandler); }
-                            else { cleanUp(); $btn.remove(); ui.notifications.info("All blood thralls sprouted."); }
+                            if (currentSpawnIndex < count) { notifyForce("info", `Place Thrall ${currentSpawnIndex + 1}.`); canvas.stage.once("pointerdown", interactionHandler); }
+                            else { cleanUp(); $btn.remove(); notify("info", "All blood thralls sprouted."); }
                         };
                         canvas.stage.once("pointerdown", interactionHandler);
                     }}, cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -1561,7 +1562,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
         else if ($btn.hasClass('desperate-revival-trigger-btn')) {
             e.preventDefault();
             const necroActor = game.actors.get($btn.attr("data-necro-id")), necroToken = necroActor?.getActiveTokens()[0];
-            if (!necroActor || !necroToken) return ui.notifications.warn("Necromancer token not found on the canvas.");
+            if (!necroActor || !necroToken) return notify("warn", "Necromancer token not found on the canvas.");
             const preWounded = necroActor.getCondition?.("wounded")?.value || 0;
             await necroActor.update({ "system.attributes.hp.value": 1 });
             await necroActor.setFlag("necromancer-thrall-helper", "desperateRevivalUsed", true);
@@ -1597,7 +1598,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                 title: "Inspire Heroic Thrall", content: `<p>Your critical strike calls a spirit to the battlefield!</p><p>Select an identity to spawn adjacent to <b>${targetToken ? targetToken.name : "the target"}</b>:</p><form><div class="form-group"><select id="heroic-preset">${optionsHtml}</select></div></form>`,
                 buttons: {
                     summon: { icon: '<i class="fas fa-magic"></i>', label: "Inspire", callback: async (dialogHtml) => {
-                        ui.notifications.info(`Click the canvas adjacent to ${targetToken ? targetToken.name : "the target"} to place the thrall. Right-click to cancel.`);
+                        notifyForce("info", `Click the canvas adjacent to ${targetToken ? targetToken.name : "the target"} to place the thrall. Right-click to cancel.`);
                         document.body.style.cursor = "crosshair"; canvas.app.view.style.cursor = "crosshair";
                         const ghost = new PIXI.Graphics(); ghost.beginFill(0xffcc00, 0.3); ghost.lineStyle(2, 0xffcc00, 0.8); ghost.drawRect(0, 0, canvas.grid.size, canvas.grid.size); ghost.endFill(); ghost.zIndex = 1000; ghost.position.set(-1000, -1000); canvas.tokens.addChild(ghost);
                         const updateGhost = (ev) => { const pos = ev.data.getLocalPosition(canvas.app.stage); const snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos; ghost.position.set(snapped.x, snapped.y); };
@@ -1605,17 +1606,17 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                         const cleanUp = () => { document.body.style.cursor = ""; canvas.app.view.style.cursor = ""; canvas.stage.off("pointermove", updateGhost); ghost.destroy(); };
                         const interactionHandler = async (ev) => {
                             if (ev.data.button !== 0 && ev.data.button !== 2) return canvas.stage.once("pointerdown", interactionHandler);
-                            if (ev.data.button === 2) { ui.notifications.info("Inspiration cancelled."); return cleanUp(); }
+                            if (ev.data.button === 2) { notify("info", "Inspiration cancelled."); return cleanUp(); }
                             const pos = ev.data.getLocalPosition(canvas.app.stage), snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos;
                             if (targetToken) {
                                 const dist = (Math.max(Math.abs((targetToken.x + (targetToken.document.width * canvas.grid.size) / 2) - (snapped.x + (canvas.grid.size / 2))), Math.abs((targetToken.y + (targetToken.document.height * canvas.grid.size) / 2) - (snapped.y + (canvas.grid.size / 2)))) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
-                                if (dist > 15) { ui.notifications.warn("The inspired thrall must be placed adjacent to the target of the critical strike!"); return canvas.stage.once("pointerdown", interactionHandler); }
+                                if (dist > 15) { notify("warn", "The inspired thrall must be placed adjacent to the target of the critical strike!"); return canvas.stage.once("pointerdown", interactionHandler); }
                             }
                             cleanUp();
                             const basePayload = await prepareThrallPayload(attackerActor, dialogHtml.find('#heroic-preset').val());
                             if (!basePayload) return;
                             const newOwnership = { default: 0 }; Object.keys(attackerActor.ownership || {}).filter(k => attackerActor.ownership[k] === 3 && k !== "default").forEach(id => newOwnership[id] = 3); newOwnership[game.user.id] = 3;
-                            executeSpawn(foundry.utils.mergeObject(basePayload, { actorLink: false, x: snapped.x, y: snapped.y, elevation: targetToken?.document?.elevation || attackerActor?.getActiveTokens()[0]?.document?.elevation || 0, delta: { ownership: newOwnership } })).catch(() => ui.notifications.error("Failed to materialize the thrall."));
+                            executeSpawn(foundry.utils.mergeObject(basePayload, { actorLink: false, x: snapped.x, y: snapped.y, elevation: targetToken?.document?.elevation || attackerActor?.getActiveTokens()[0]?.document?.elevation || 0, delta: { ownership: newOwnership } })).catch(() => notify("error", "Failed to materialize the thrall."));
                         };
                         canvas.stage.once("pointerdown", interactionHandler);
                     }}, cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -1626,18 +1627,18 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
         else if ($btn.hasClass('perfected-spawn-btn')) {
             e.preventDefault(); e.stopPropagation();
             const masterActor = game.actors.get($btn.attr("data-master-id")) || game.user.character || canvas.tokens.controlled[0]?.actor;
-            if (!masterActor) return ui.notifications.warn("Necromancer not found. Please select your character.");
-            if (!game.user.isGM && !masterActor.isOwner) return ui.notifications.warn("You lack permission to command this Necromancer.");
+            if (!masterActor) return notify("warn", "Necromancer not found. Please select your character.");
+            if (!game.user.isGM && !masterActor.isOwner) return notifyForce("warn", "You lack permission to command this Necromancer.");
             if (globalThis.NecroThrallHelper?.executeSheddingMatrix) globalThis.NecroThrallHelper.executeSheddingMatrix(masterActor, 4);
-            else ui.notifications.warn("Command Deck must be open to process rapid shedding.");
+            else notify("warn", "Command Deck must be open to process rapid shedding.");
         }
 
         else if ($btn.hasClass('tsunami-limb-btn')) {
             e.preventDefault(); e.stopPropagation();
             const targetsData = message.flags?.["aoe-easy-resolve"]?.targets || {}, targetIds = Object.keys(targetsData);
-            if (targetIds.length === 0) return ui.notifications.warn("Please wait for the cone template to register targets in the chat card!");
+            if (targetIds.length === 0) return notify("warn", "Please wait for the cone template to register targets in the chat card!");
             const availableThralls = targetIds.map(id => canvas.tokens.get(id)).filter(t => t?.document.getFlag("necromancer-thrall-helper", "masterId") === casterId);
-            if (availableThralls.length === 0) return ui.notifications.warn("No secondary thrall found inside the cone to sacrifice.");
+            if (availableThralls.length === 0) return notify("warn", "No secondary thrall found inside the cone to sacrifice.");
             const consume = async (sacrificedThrall) => {
                 if (!sacrificedThrall) return;
                 await message.update({ "flags.necromancer-thrall-helper.limbsActivated": true, "flags.necromancer-thrall-helper.sacrificedThrallId": sacrificedThrall.id, [`flags.aoe-easy-resolve.targets.-=${sacrificedThrall.id}`]: null });
@@ -1656,9 +1657,9 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
         else if ($btn.hasClass('bone-armor-btn')) {
             e.preventDefault(); e.stopPropagation();
             const targetIds = Object.keys(message.flags?.["aoe-easy-resolve"]?.targets || {});
-            if (targetIds.length === 0) return ui.notifications.warn("Please wait for the cone template to register targets in the chat card!");
+            if (targetIds.length === 0) return notify("warn", "Please wait for the cone template to register targets in the chat card!");
             const availableThralls = targetIds.map(id => canvas.tokens.get(id)).filter(t => t?.document.getFlag("necromancer-thrall-helper", "masterId") === casterId);
-            if (availableThralls.length === 0) return ui.notifications.warn("No secondary thrall found strictly inside the cone to sacrifice.");
+            if (availableThralls.length === 0) return notify("warn", "No secondary thrall found strictly inside the cone to sacrifice.");
             const consume = async (sacrificedThrall) => {
                 if (!sacrificedThrall) return;
                 let updates = { "flags.necromancer-thrall-helper.boneArmorActivated": true, "flags.necromancer-thrall-helper.sacrificedThrallId": sacrificedThrall.id, "flags.necromancer-thrall-helper.applyArmorEffects": true, [`flags.aoe-easy-resolve.targets.-=${sacrificedThrall.id}`]: null };
@@ -2435,10 +2436,10 @@ Hooks.on("updateToken", async (tokenDoc, changes, options, userId) => {
         if (dist <= 15 && !hasFastHealing) {
             const rank = effect.getFlag("necromancer-thrall-helper", "spellRank") || 1;
             await effect.update({ "system.rules": [...rules, { key: "FastHealing", value: rank, type: "fast-healing" }] });
-            ui.notifications.info(enterMsg);
+            notify("info", enterMsg);
         } else if (dist > 15 && hasFastHealing) {
             await effect.update({ "system.rules": rules.filter(r => r.key !== "FastHealing") });
-            ui.notifications.warn(leaveMsg);
+            notify("warn", leaveMsg);
         }
     };
 
@@ -2490,7 +2491,7 @@ Hooks.on("preCreateToken", (tokenDoc, data, options, userId) => {
         tokenDoc.updateSource({
             "flags.necromancer-thrall-helper.masterId": masterActor.id
         });
-        ui.notifications.info(`Conjurer of Corpses: Bound ${tokenDoc.name} as a thrall.`);
+        notify("info", `Conjurer of Corpses: Bound ${tokenDoc.name} as a thrall.`);
     }
 });
 
@@ -2633,13 +2634,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const necro = game.actors.find(a => a.flags?.["necromancer-thrall-helper"]?.familyTree);
                 if (necro) {
                     necroId = necro.id;
-                    ui.notifications.info(`Auto-assigned Command Deck to ${necro.name}.`);
+                    notify("info", `Auto-assigned Command Deck to ${necro.name}.`);
                 }
             }
         }
 
         if (!necroId) {
-            ui.notifications.warn("No Necromancer found. Please select your token before opening the Command Deck.");
+            notify("warn", "No Necromancer found. Please select your token before opening the Command Deck.");
             throw new Error("Command Deck aborted: No valid Necromancer target.");
         }
 
@@ -2658,7 +2659,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             });
             
             if (!isAuthorized && !game.user.isGM) {
-                ui.notifications.warn("This mortal lacks the dark blood and discipline required to command the dead.");
+                notifyForce("warn", "This mortal lacks the dark blood and discipline required to command the dead.");
                 throw new Error("Unauthorized Command Deck access.");
             }
         }
@@ -3034,25 +3035,25 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             e.preventDefault();
             e.stopPropagation();
             const actor = game.actors.get(this.necroId) || game.user.character;
-            if (!actor) return ui.notifications.warn("No Necromancer found!");
+            if (!actor) return notify("warn", "No Necromancer found!");
 
             const currentFocus = actor.system?.resources?.focus?.value || 0;
-            if (currentFocus === 0) return ui.notifications.warn("You have no Focus Points to conjure a Perfected Thrall!");
+            if (currentFocus === 0) return notify("warn", "You have no Focus Points to conjure a Perfected Thrall!");
 
             let perfActor = game.actors.find(a => a.name === "Perfected Thrall");
             if (!perfActor) {
                 const pack = game.packs.get("necromancer-thrall-helper.necro-thralls");
-                if (!pack) return ui.notifications.error("Could not find the Necromancer Thralls compendium pack.");
+                if (!pack) return notifyForce("error", "Could not find the Necromancer Thralls compendium pack.");
                 const index = await pack.getIndex();
                 const entry = index.find(a => a.name === "Perfected Thrall");
-                if (!entry) return ui.notifications.error("Could not find 'Perfected Thrall' in the compendium.");
+                if (!entry) return notify("error", "Could not find 'Perfected Thrall' in the compendium.");
                 perfActor = await pack.getDocument(entry._id);
             }
             if (!perfActor) return;
 
             await actor.update({ "system.resources.focus.value": currentFocus - 1 });
 
-            ui.notifications.info("Click the canvas to place the Perfected Thrall within 60 feet. Right-click to cancel.");
+            notifyForce("info", "Click the canvas to place the Perfected Thrall within 60 feet. Right-click to cancel.");
             document.body.style.cursor = "crosshair";
             canvas.app.view.style.cursor = "crosshair";
 
@@ -3122,7 +3123,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     const dy = Math.abs(necroCenter.y - targetCenter.y);
                     const dist = (Math.max(dx, dy) / canvas.grid.size) * canvas.scene.grid.distance;
                     if (dist > 60) {
-                        ui.notifications.warn("The Perfected Thrall must be placed within 60 feet.");
+                        notify("warn", "The Perfected Thrall must be placed within 60 feet.");
                         canvas.stage.once("pointerdown", interactionHandler);
                         return;
                     }
@@ -3199,14 +3200,14 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
             const pack = game.packs.get("necromancer-thrall-helper.necro-thralls");
             if (!pack) {
-                ui.notifications.error("Could not find the Necromancer Thralls compendium pack.");
+                notifyForce("error", "Could not find the Necromancer Thralls compendium pack.");
                 return null;
             }
 
             const index = await pack.getIndex();
             const entry = index.find(a => a.name === actorName);
             if (!entry) {
-                ui.notifications.error(`Could not find '${actorName}' in the compendium.`);
+                notify("error", `Could not find '${actorName}' in the compendium.`);
                 return null;
             }
 
@@ -3503,7 +3504,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 }
                                 updates["flags.necromancer-thrall-helper.useBundledDefault"] = dialogHtml.find("#use-bundled-default").is(":checked");
                                 await actor.update(updates);
-                                ui.notifications.info("Summon configurations updated successfully.");
+                                notify("info", "Summon configurations updated successfully.");
                             }
                         },
                         cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -3524,7 +3525,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (!actor) return;
 
                 const currentFocus = actor.system?.resources?.focus?.value || 0;
-                if (currentFocus === 0) return ui.notifications.warn("You have no Focus Points to cast Skeletal Lancers!");
+                if (currentFocus === 0) return notify("warn", "You have no Focus Points to cast Skeletal Lancers!");
 
                 const lancerActor = await getOrImportActor("Skeletal Lancer");
                 if (!lancerActor) return;
@@ -3534,7 +3535,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 let currentSpawnIndex = 0;
                 const maxSpawns = 5;
 
-                ui.notifications.info(`Click the canvas to place Skeletal Lancer 1 of ${maxSpawns} within 60 feet. Right-click to finish early.`);
+                notifyForce("info", `Click the canvas to place Skeletal Lancer 1 of ${maxSpawns} within 60 feet. Right-click to finish early.`);
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -3595,7 +3596,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             await actor.update({ "system.resources.focus.value": currentFocus });
                         }
                         cleanUp();
-                        ui.notifications.info(`Finished summoning ${currentSpawnIndex} Skeletal Lancer(s).`);
+                        notify("info", `Finished summoning ${currentSpawnIndex} Skeletal Lancer(s).`);
                         return;
                     }
 
@@ -3608,7 +3609,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         const dy = Math.abs(necroCenter.y - targetCenter.y);
                         const dist = (Math.max(dx, dy) / canvas.grid.size) * canvas.scene.grid.distance;
                         if (dist > 60) {
-                            ui.notifications.warn("Skeletal Lancers must be placed within 60 feet.");
+                            notify("warn", "Skeletal Lancers must be placed within 60 feet.");
                             canvas.stage.once("pointerdown", interactionHandler);
                             return;
                         }
@@ -3628,11 +3629,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     await executeSpawn(finalPayload).catch(err => console.error(err));
 
                     if (currentSpawnIndex < maxSpawns) {
-                        ui.notifications.info(`Place Skeletal Lancer ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
+                        notifyForce("info", `Place Skeletal Lancer ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
                         canvas.stage.once("pointerdown", interactionHandler);
                     } else {
                         cleanUp();
-                        ui.notifications.info("All 5 Skeletal Lancers deployed.");
+                        notify("info", "All 5 Skeletal Lancers deployed.");
                     }
                 };
 
@@ -3655,15 +3656,15 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (isSustain) {
                     const lastSustained = actor.getFlag("necromancer-thrall-helper", "nightmareSustainRound");
                     if (currentCombat && lastSustained === currentRound) {
-                        return ui.notifications.warn("You can only resummon the Recurring Nightmare once per round.");
+                        return notify("warn", "You can only resummon the Recurring Nightmare once per round.");
                     }
                 } else {
                     const currentFocus = actor.system?.resources?.focus?.value || 0;
-                    if (currentFocus === 0) return ui.notifications.warn("You have no Focus Points to cast Recurring Nightmare!");
+                    if (currentFocus === 0) return notify("warn", "You have no Focus Points to cast Recurring Nightmare!");
                     await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                 }
 
-                ui.notifications.info("Click the canvas within 60 feet (even on occupied spaces) to manifest the Nightmare. Right-click to cancel.");
+                notifyForce("info", "Click the canvas within 60 feet (even on occupied spaces) to manifest the Nightmare. Right-click to cancel.");
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -3736,7 +3737,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         const dy = Math.abs(necroCenter.y - targetCenter.y);
                         const dist = (Math.max(dx, dy) / canvas.grid.size) * canvas.scene.grid.distance;
                         if (dist > 60) {
-                            ui.notifications.warn("The Recurring Nightmare must be placed within 60 feet.");
+                            notify("warn", "The Recurring Nightmare must be placed within 60 feet.");
                             canvas.stage.once("pointerdown", interactionHandler);
                             return;
                         }
@@ -3841,7 +3842,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const actor = game.actors.get(this.necroId) || game.user.character;
                 if (!actor) return;
                 await actor.unsetFlag("necromancer-thrall-helper", "nightmareDestroyed");
-                ui.notifications.info("The Recurring Nightmare fades completely into the ether.");
+                notify("info", "The Recurring Nightmare fades completely into the ether.");
             });
         }
 
@@ -3849,7 +3850,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
         globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
         const executeSheddingMatrix = async (actor, maxSpawns) => {
             if (globalThis.NecroThrallHelper._isSheddingCorpses) {
-                return ui.notifications.warn("You are already shedding corpses! Right-click the canvas to cancel first.");
+                return notify("warn", "You are already shedding corpses! Right-click the canvas to cancel first.");
             }
             globalThis.NecroThrallHelper._isSheddingCorpses = true;
 
@@ -3860,7 +3861,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             }
 
             let currentSpawn = 0;
-            ui.notifications.info(`Click to place Thrall 1 of ${maxSpawns}. Right-click to stop early.`);
+            notifyForce("info", `Click to place Thrall 1 of ${maxSpawns}. Right-click to stop early.`);
             document.body.style.cursor = "crosshair";
             canvas.app.view.style.cursor = "crosshair";
 
@@ -3943,7 +3944,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 await applyCustomVisuals(finalPayload, actor, "shed");
 
                 currentSpawn++;
-                ui.notifications.info(`Spawn request ${currentSpawn} queued...`);
+                notify("info", `Spawn request ${currentSpawn} queued...`);
                 
                 executeSpawn(finalPayload).catch(err => console.error(err));
 
@@ -3951,7 +3952,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     canvas.stage.once("pointerdown", spawnHandler);
                 } else {
                     cleanUpSpawns();
-                    ui.notifications.info("All summons requested.");
+                    notify("info", "All summons requested.");
                 }
             };
             canvas.stage.once("pointerdown", spawnHandler);
@@ -3974,7 +3975,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 $(html).find(".dismiss-graveyard-btn").on("click", async (e) => {
                     e.preventDefault();
                     await executeDelete(activeGraveyard.id);
-                    ui.notifications.info("Living Graveyard dismissed.");
+                    notify("info", "Living Graveyard dismissed.");
                     this.render(false);
                 });
             } else {
@@ -3983,7 +3984,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     e.stopPropagation();
                     
                     if (this._isPlacingGraveyard) {
-                        return ui.notifications.warn("You are already placing a Graveyard! Right-click the canvas to cancel first.");
+                        return notify("warn", "You are already placing a Graveyard! Right-click the canvas to cancel first.");
                     }
                     this._isPlacingGraveyard = true;
     
@@ -3991,17 +3992,17 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     if (!actor) { this._isPlacingGraveyard = false; return; }
                     
                     const spell = actor.items.find(i => i.name === "Living Graveyard");
-                    if (!spell) { this._isPlacingGraveyard = false; return ui.notifications.warn("Living Graveyard spell not found on your sheet."); }
+                    if (!spell) { this._isPlacingGraveyard = false; return notify("warn", "Living Graveyard spell not found on your sheet."); }
     
                     const currentFocus = actor.system?.resources?.focus?.value || 0;
-                    if (currentFocus === 0) { this._isPlacingGraveyard = false; return ui.notifications.warn("You have no Focus Points to cast Living Graveyard!"); }
+                    if (currentFocus === 0) { this._isPlacingGraveyard = false; return notify("warn", "You have no Focus Points to cast Living Graveyard!"); }
     
                     await actor.update({ "system.resources.focus.value": currentFocus - 1 });
     
                     const graveyardActor = await getOrImportActor("Living Graveyard");
                     if (!graveyardActor) { this._isPlacingGraveyard = false; return; }
     
-                    ui.notifications.info("Click to place the Living Graveyard within 120 feet. Right-click to cancel.");
+                    notifyForce("info", "Click to place the Living Graveyard within 120 feet. Right-click to cancel.");
                     document.body.style.cursor = "crosshair";
                     canvas.app.view.style.cursor = "crosshair";
     
@@ -4071,7 +4072,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const dy = Math.abs(necroCenter.y - targetCenter.y);
                             const dist = (Math.max(dx, dy) / canvas.grid.size) * canvas.scene.grid.distance;
                             if (dist > 120) {
-                                ui.notifications.warn("The Living Graveyard must be placed within 120 feet.");
+                                notify("warn", "The Living Graveyard must be placed within 120 feet.");
                                 canvas.stage.once("pointerdown", interactionHandler);
                                 return;
                             }
@@ -4206,7 +4207,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (!actor) return;
                 
                 if (actor.getFlag("necromancer-thrall-helper", "instantArmyUsed")) {
-                    return ui.notifications.warn("You have already exhausted your emergency cache today.");
+                    return notify("warn", "You have already exhausted your emergency cache today.");
                 }
 
                 const presets = typeof getThrallPresets === "function" ? getThrallPresets(actor) : [];
@@ -4248,7 +4249,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 let currentSpawnIndex = 0;
                                 const maxSpawns = 20;
 
-                                ui.notifications.info(`Click to place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop early.`);
+                                notifyForce("info", `Click to place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop early.`);
                                 document.body.style.cursor = "crosshair";
                                 canvas.app.view.style.cursor = "crosshair";
 
@@ -4278,7 +4279,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     canvas.stage.off("pointermove", updateGhost);
                                     ghost.destroy();
                                     if (currentSpawnIndex > 0) {
-                                        ui.notifications.info(`Instant Army deployed ${currentSpawnIndex} thrall(s).`);
+                                        notify("info", `Instant Army deployed ${currentSpawnIndex} thrall(s).`);
                                     }
                                    
                                     this.render({ force: false });
@@ -4312,7 +4313,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     executeSpawn(finalPayload).catch(err => console.error(err));
 
                                     if (currentSpawnIndex < maxSpawns) {
-                                        ui.notifications.info(`Place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
+                                        notifyForce("info", `Place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
                                         canvas.stage.once("pointerdown", interactionHandler);
                                     } else {
                                         cleanUp();
@@ -4336,7 +4337,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (!actor) return;
 
                 const currentFocus = actor.system?.resources?.focus?.value || 0;
-                if (currentFocus === 0) return ui.notifications.warn("You have no Focus Points to cast Dread Mosquito Storm!");
+                if (currentFocus === 0) return notify("warn", "You have no Focus Points to cast Dread Mosquito Storm!");
 
                 let exactDC = 10 + Math.floor((actor.level || 1) * 1.5);
                 if (actor.spellcasting) {
@@ -4380,7 +4381,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                 await actor.update({ "system.resources.focus.value": currentFocus - 1 });
 
-                ui.notifications.info("Click the canvas within 120 feet to release the swarm. Right-click to cancel.");
+                notifyForce("info", "Click the canvas within 120 feet to release the swarm. Right-click to cancel.");
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -4419,7 +4420,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     }
                     if (evt.data.button === 2) {
                         await actor.update({ "system.resources.focus.value": currentFocus });
-                        ui.notifications.info("Swarm placement cancelled.");
+                        notify("info", "Swarm placement cancelled.");
                         cleanUp();
                         return;
                     }
@@ -4540,7 +4541,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (rIds.length || dIds.length) {
                     globalThis.NecroThrallHelper.purgeGraphics(canvas.scene.id, { regionIds: rIds, drawingIds: dIds });
                 }
-                ui.notifications.info("Dread Mosquito Storm dismissed.");
+                notify("info", "Dread Mosquito Storm dismissed.");
                 setTimeout(() => this.render({ force: false }), 150);
             });
         }
@@ -4554,7 +4555,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const existing = actor.items.find(i => i.type === "effect" && i.name === "Effect: Hallowed Earth");
                 if (existing) {
                     await existing.delete();
-                    ui.notifications.info("Hallowed Earth dismissed.");
+                    notify("info", "Hallowed Earth dismissed.");
                 } else {
                     const effectData = {
                         name: "Effect: Hallowed Earth",
@@ -4567,7 +4568,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
                     };
                     await actor.createEmbeddedDocuments("Item", [effectData]);
-                    ui.notifications.info("Hallowed Earth activated.");
+                    notify("info", "Hallowed Earth activated.");
                 }
                 this.render({ force: false });
             });
@@ -4583,7 +4584,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const existing = actor.items.find(i => i.type === "effect" && i.name === "Effect: Corrupted Ground");
                 if (existing) {
                     await existing.delete();
-                    ui.notifications.info("Corrupted Ground dismissed.");
+                    notify("info", "Corrupted Ground dismissed.");
                 } else {
                     const effectData = {
                         name: "Effect: Corrupted Ground",
@@ -4596,7 +4597,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
                     };
                     await actor.createEmbeddedDocuments("Item", [effectData]);
-                    ui.notifications.info("Corrupted Ground activated.");
+                    notify("info", "Corrupted Ground activated.");
                 }
                 this.render({ force: false });
             });
@@ -4619,7 +4620,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const gridDist = canvas.scene.grid.distance;
                 const gridSize = canvas.scene.grid.size;
 
-                ui.notifications.info("Click the canvas to Sustain and move the Zombie Horde. Right-click to cancel.");
+                notifyForce("info", "Click the canvas to Sustain and move the Zombie Horde. Right-click to cancel.");
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -4660,7 +4661,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     }
 
                     if (event.data.button === 2) {
-                        ui.notifications.info("Movement cancelled.");
+                        notify("info", "Movement cancelled.");
                         cleanUp();
                         return;
                     }
@@ -4740,7 +4741,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     if (drawing) await drawing.delete();
                     await h.delete();
                 }
-                ui.notifications.info("Zombie Horde dismissed.");
+                notify("info", "Zombie Horde dismissed.");
                 this.render({ force: false });
             });
         }
@@ -4754,7 +4755,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (rIds.length || dIds.length) {
                     globalThis.NecroThrallHelper.purgeGraphics(canvas.scene.id, { regionIds: rIds, drawingIds: dIds });
                 }
-                ui.notifications.info("Blossoming Gore dismissed.");
+                notify("info", "Blossoming Gore dismissed.");
                 setTimeout(() => this.render({ force: false }), 150);
             });
         }
@@ -4778,7 +4779,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 e.preventDefault();
                 const actor = game.actors.get(this.necroId);
                 if (!actor) {
-                    ui.notifications.warn("No Necromancer found!");
+                    notify("warn", "No Necromancer found!");
                     return;
                 }
                 new PortfolioEditor(actor).render(true);
@@ -4792,7 +4793,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (!actor || !canvas.scene) return;
 
                 const necroTokens = actor.getActiveTokens();
-                if (necroTokens.length === 0) return ui.notifications.warn("Necromancer token not found on the canvas.");
+                if (necroTokens.length === 0) return notify("warn", "Necromancer token not found on the canvas.");
                 const necroToken = necroTokens[0];
 
                 const hasConjurer = actor.items.some(i => ["spell", "feat", "action"].includes(i.type) && (i.name.toLowerCase().includes("conjurer of corpses") || (i.system?.slug && i.system.slug.includes("conjurer-of-corpses"))));
@@ -4824,7 +4825,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     return dist <= 5; 
                 });
 
-                if (eligibleThralls.length === 0) return ui.notifications.warn("No eligible thralls within 5 feet to use as a meat shield.");
+                if (eligibleThralls.length === 0) return notify("warn", "No eligible thralls within 5 feet to use as a meat shield.");
 
                 let optionsHtml = "";
                 eligibleThralls.forEach(t => {
@@ -4892,7 +4893,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (!actor || !canvas.scene) return;
 
                 const necroTokens = actor.getActiveTokens();
-                if (necroTokens.length === 0) return ui.notifications.warn("Necromancer token not found on the canvas.");
+                if (necroTokens.length === 0) return notify("warn", "Necromancer token not found on the canvas.");
                 const necroToken = necroTokens[0];
 
                 const hasConjurer = actor.items.some(i => ["spell", "feat", "action"].includes(i.type) && (i.name.toLowerCase().includes("conjurer of corpses") || (i.system?.slug && i.system.slug.includes("conjurer-of-corpses"))));
@@ -4924,7 +4925,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     return dist <= 60;
                 });
 
-                if (eligibleThralls.length === 0) return ui.notifications.warn("No eligible thralls within 60 feet.");
+                if (eligibleThralls.length === 0) return notify("warn", "No eligible thralls within 60 feet.");
 
                 let checkboxes = "";
                 eligibleThralls.forEach((t, index) => {
@@ -4957,7 +4958,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 const selectedIds = [];
                                 dialogHtml.find('.reclaim-checkbox:checked').each((i, cb) => selectedIds.push(cb.value));
 
-                                if (selectedIds.length === 0) return ui.notifications.warn("You must select at least one thrall.");
+                                if (selectedIds.length === 0) return notify("warn", "You must select at least one thrall.");
 
                                 const necroLevel = actor.level || 1;
                                 const hpGained = selectedIds.length * necroLevel;
@@ -5044,7 +5045,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const checkedCount = dialogHtml.find('.reclaim-checkbox:checked').length;
                             if (checkedCount > 3) {
                                 this.checked = false;
-                                ui.notifications.warn("You can only reclaim up to 3 thralls at a time.");
+                                notify("warn", "You can only reclaim up to 3 thralls at a time.");
                             }
                         });
                     }
@@ -5080,7 +5081,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 });
                 
                 if (thrallTokens.length === 0) {
-                    return ui.notifications.warn("No thralls on the battlefield to reinforce.");
+                    return notify("warn", "No thralls on the battlefield to reinforce.");
                 }
 
                 const effectData = {
@@ -5145,11 +5146,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 console.log(`Necromancer Helper | Execute clicked! Action: [${action}] | Token: [${tokenId}]`);
 
                 if (!actor || !canvas.scene) {
-                    return ui.notifications.error("Execution Failed: Necromancer or Canvas not found.");
+                    return notify("error", "Execution Failed: Necromancer or Canvas not found.");
                 }
                 const tokenDoc = canvas.scene.tokens.get(tokenId);
                 if (!tokenDoc) {
-                    return ui.notifications.error("Execution Failed: Thrall token not found on the canvas.");
+                    return notify("error", "Execution Failed: Thrall token not found on the canvas.");
                 }
 
                 const necroLevel = actor.level || 1;
@@ -5257,7 +5258,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     }
 
                     if (!strike || !strike.variants || !strike.variants[variantIndex]) {
-                        ui.notifications.warn(`Execution failed. ${tokenDoc.name} could not draw its weapon (Network Timeout).`);
+                        notify("warn", `Execution failed. ${tokenDoc.name} could not draw its weapon (Network Timeout).`);
                         return;
                     }
 
@@ -5304,19 +5305,19 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "reanimate-foe": {
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Reanimate Foe!");
+                            notify("warn", "You have no Focus Points to cast Reanimate Foe!");
                             break;
                         }
 
                         const loreSkill = Object.values(actor.skills).find(s => s.slug?.includes("undead-lore") || s.label.toLowerCase().includes("undead lore"));
                         if (!loreSkill) {
-                            ui.notifications.warn("You lack the Undead Lore skill required to weave this magic.");
+                            notify("warn", "You lack the Undead Lore skill required to weave this magic.");
                             break;
                         }
 
                         const targets = Array.from(game.user.targets);
                         if (targets.length !== 1) {
-                            ui.notifications.warn("You must target exactly one dead enemy corpse on the canvas.");
+                            notify("warn", "You must target exactly one dead enemy corpse on the canvas.");
                             break;
                         }
                         
@@ -5324,13 +5325,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         const corpseActor = targets[0].actor;
 
                         if ((corpseActor.system.attributes.hp?.value || 0) > 0) {
-                            ui.notifications.warn("The target is still breathing. It must be dead (0 HP).");
+                            notify("warn", "The target is still breathing. It must be dead (0 HP).");
                             break;
                         }
 
                         const necroTokens = actor.getActiveTokens();
                         if (necroTokens.length === 0) {
-                            ui.notifications.warn("Necromancer token not found on the canvas.");
+                            notify("warn", "Necromancer token not found on the canvas.");
                             break;
                         }
                         const necroToken = necroTokens[0];
@@ -5346,7 +5347,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
 
                         if (distToNecro > 30) {
-                            ui.notifications.warn(`${tokenDoc.name} is too far from you (must be within 30 feet).`);
+                            notify("warn", `${tokenDoc.name} is too far from you (must be within 30 feet).`);
                             break;
                         }
 
@@ -5361,7 +5362,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
 
                         if (distToCorpse > 30) {
-                            ui.notifications.warn(`${tokenDoc.name} is too far from the corpse (must be within 30 feet of it).`);
+                            notify("warn", `${tokenDoc.name} is too far from the corpse (must be within 30 feet of it).`);
                             break;
                         }
 
@@ -5420,7 +5421,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                                 <p style="margin: 5px 0 0 0; font-size: 0.85em; font-style: italic; color: #aaa;">Special abilities and Strike side-effects are disabled by the ritual.</p>
                                             </div>`;
 
-                                            ui.notifications.info("Click an adjacent space to spawn the Reanimated Foe.");
+                                            notifyForce("info", "Click an adjacent space to spawn the Reanimated Foe.");
                                             document.body.style.cursor = "crosshair";
                                             canvas.app.view.style.cursor = "crosshair";
 
@@ -5545,7 +5546,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "calcification": {
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You lack the Focus Points to cast Calcification.");
+                            notify("warn", "You lack the Focus Points to cast Calcification.");
                             break;
                         }
 
@@ -5561,7 +5562,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to catalyze Calcification.");
+                                notify("warn", "You must be within 30 feet of the thrall to catalyze Calcification.");
                                 break;
                             }
                         }
@@ -5577,7 +5578,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (validTargets.length !== 1) {
-                            ui.notifications.warn("Calcification requires exactly one target selected on the canvas within 60 feet of the thrall.");
+                            notify("warn", "Calcification requires exactly one target selected on the canvas within 60 feet of the thrall.");
                             break;
                         }
 
@@ -5675,7 +5676,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "temporary-possession": {
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You lack the Focus Points to attempt a Temporary Possession.");
+                            notify("warn", "You lack the Focus Points to attempt a Temporary Possession.");
                             break;
                         }
 
@@ -5691,7 +5692,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to catalyze the possession.");
+                                notify("warn", "You must be within 30 feet of the thrall to catalyze the possession.");
                                 break;
                             }
                         }
@@ -5707,7 +5708,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (validTargets.length !== 1) {
-                            ui.notifications.warn("Temporary Possession requires exactly one target selected on the canvas within 15 feet of the thrall.");
+                            notify("warn", "Temporary Possession requires exactly one target selected on the canvas within 15 feet of the thrall.");
                             break;
                         }
 
@@ -5813,7 +5814,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "flesh-tsunami": {
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Flesh Tsunami!");
+                            notify("warn", "You have no Focus Points to cast Flesh Tsunami!");
                             break;
                         }
 
@@ -5829,7 +5830,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to cast Flesh Tsunami.");
+                                notify("warn", "You must be within 30 feet of the thrall to cast Flesh Tsunami.");
                                 break;
                             }
                         }
@@ -5908,7 +5909,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
                                         
                                         await tsunamiSpell.toMessage(e);
-                                        ui.notifications.info("Draw your 60-foot cone starting from the marked origin point.");
+                                        notifyForce("info", "Draw your 60-foot cone starting from the marked origin point.");
                                     }
                                 },
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -5921,7 +5922,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "amalgamate": {
                         const necroTokens = actor.getActiveTokens();
                         if (necroTokens.length === 0) {
-                            ui.notifications.warn("No Necromancer token found on the canvas.");
+                            notify("warn", "No Necromancer token found on the canvas.");
                             break;
                         }
                         const necroToken = necroTokens[0];
@@ -5937,7 +5938,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
 
                         if (distToNecro > 30) {
-                            ui.notifications.warn(`${tokenDoc.name} is too far from you (must be within 30 feet).`);
+                            notify("warn", `${tokenDoc.name} is too far from you (must be within 30 feet).`);
                             break;
                         }
 
@@ -5979,7 +5980,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (eligibleThralls.length === 0) {
-                            ui.notifications.warn(`There are no other adjacent thralls within 30 feet of you to fuse with ${tokenDoc.name}.`);
+                            notify("warn", `There are no other adjacent thralls within 30 feet of you to fuse with ${tokenDoc.name}.`);
                             break;
                         }
 
@@ -6071,13 +6072,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "bind-heroic-spirit": {
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Bind Heroic Spirit!");
+                            notify("warn", "You have no Focus Points to cast Bind Heroic Spirit!");
                             break;
                         }
 
                         const necroTokens = actor.getActiveTokens();
                         if (necroTokens.length === 0) {
-                            ui.notifications.warn("No Necromancer token found on the canvas.");
+                            notify("warn", "No Necromancer token found on the canvas.");
                             break;
                         }
                         const necroToken = necroTokens[0];
@@ -6092,7 +6093,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
 
                         if (distanceToNecro > 30) {
-                            ui.notifications.warn(`${tokenDoc.name} is too far away. They must be within 30 feet.`);
+                            notify("warn", `${tokenDoc.name} is too far away. They must be within 30 feet.`);
                             break;
                         }
 
@@ -6150,7 +6151,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "conglomerate-charge": {
                         const originalTargets = Array.from(game.user.targets);
                         if (originalTargets.length === 0 || originalTargets.length > 2) {
-                            ui.notifications.warn("Conglomerate Charge requires exactly 1 or 2 targets selected.");
+                            notify("warn", "Conglomerate Charge requires exactly 1 or 2 targets selected.");
                             break;
                         }
 
@@ -6168,7 +6169,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (validTargets.length !== originalTargets.length) {
-                            ui.notifications.warn("All targets for Conglomerate Charge must be within 10 feet of the thrall.");
+                            notify("warn", "All targets for Conglomerate Charge must be within 10 feet of the thrall.");
                             break;
                         }
 
@@ -6243,7 +6244,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             }
 
                             if (!strike || !strike.variants || !strike.variants[variantIndex]) {
-                                ui.notifications.error(`${tokenDoc.name} could not draw its weapon (Network Timeout).`);
+                                notify("error", `${tokenDoc.name} could not draw its weapon (Network Timeout).`);
                                 return;
                             }
 
@@ -6315,7 +6316,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             }
 
                             if (hitCount === 0) {
-                                ui.notifications.info("Conglomerate Charge: All strikes missed. No Grab saves needed.");
+                                notify("info", "Conglomerate Charge: All strikes missed. No Grab saves needed.");
                                 return;
                             }
 
@@ -6393,7 +6394,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "body-shield": {
                         const necroTokens = actor.getActiveTokens();
                         if (necroTokens.length === 0) {
-                            ui.notifications.warn("No Necromancer token found on the canvas.");
+                            notify("warn", "No Necromancer token found on the canvas.");
                             break;
                         }
                         const necroToken = necroTokens[0];
@@ -6408,7 +6409,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
 
                         if (distance > 5) {
-                            ui.notifications.warn(`${tokenDoc.name} is too far away to use as a meat shield. They must be adjacent (5 feet).`);
+                            notify("warn", `${tokenDoc.name} is too far away to use as a meat shield. They must be adjacent (5 feet).`);
                             break;
                         }
 
@@ -6453,13 +6454,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "blossoming-gore": {
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Blossoming Gore!");
+                            notify("warn", "You have no Focus Points to cast Blossoming Gore!");
                             break;
                         }
 
                         const necroTokens = actor.getActiveTokens();
                         if (necroTokens.length === 0) {
-                            ui.notifications.warn("No Necromancer token found on the canvas.");
+                            notify("warn", "No Necromancer token found on the canvas.");
                             break;
                         }
                         const necroToken = necroTokens[0];
@@ -6474,7 +6475,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
 
                         if (distanceToNecro > 60) {
-                            ui.notifications.warn(`${tokenDoc.name} is too far away. They must be within 60 feet.`);
+                            notify("warn", `${tokenDoc.name} is too far away. They must be within 60 feet.`);
                             break;
                         }
 
@@ -6503,7 +6504,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     callback: async () => {
                                         const focusToSpend = actor.system?.resources?.focus?.value || 0;
                                         if (focusToSpend <= 0) {
-                                            return ui.notifications.warn("You have no Focus Points remaining!");
+                                            return notify("warn", "You have no Focus Points remaining!");
                                         }
                                         await actor.update({ "system.resources.focus.value": focusToSpend - 1 });
                                         
@@ -6670,7 +6671,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "zombie-horde": {
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Zombie Horde!");
+                            notify("warn", "You have no Focus Points to cast Zombie Horde!");
                             break;
                         }
 
@@ -6686,7 +6687,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to cast Zombie Horde.");
+                                notify("warn", "You must be within 30 feet of the thrall to cast Zombie Horde.");
                                 break;
                             }
                         }
@@ -6820,7 +6821,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     case "deathly-scream": {
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Deathly Scream!");
+                            notify("warn", "You have no Focus Points to cast Deathly Scream!");
                             break;
                         }
 
@@ -6836,7 +6837,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to cast Deathly Scream.");
+                                notify("warn", "You must be within 30 feet of the thrall to cast Deathly Scream.");
                                 break;
                             }
                         }
@@ -6895,7 +6896,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     callback: async () => {
                                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                                         if (currentFocus <= 0) {
-                                            return ui.notifications.warn("You have no Focus Points remaining!");
+                                            return notify("warn", "You have no Focus Points remaining!");
                                         }
                                         if (currentFocus > 0) await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                                         
@@ -6954,7 +6955,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
 
                                         if (Object.keys(targetsData).length === 0) {
-                                            ui.notifications.info("The thrall screams, but no targets were caught in the blast!");
+                                            notify("info", "The thrall screams, but no targets were caught in the blast!");
                                             return; 
                                         }
 
@@ -7007,7 +7008,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to use Bone Burst.");
+                                notify("warn", "You must be within 30 feet of the thrall to use Bone Burst.");
                                 break;
                             }
                         }
@@ -7027,7 +7028,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (validTargets.length !== 1) {
-                            ui.notifications.warn("Bone Burst requires exactly one target selected adjacent (within 5 feet) to the thrall.");
+                            notify("warn", "Bone Burst requires exactly one target selected adjacent (within 5 feet) to the thrall.");
                             break;
                         }
 
@@ -7149,7 +7150,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distance = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distance > 30) {
-                                ui.notifications.warn("That thrall is beyond 30 feet.");
+                                notify("warn", "That thrall is beyond 30 feet.");
                                 break;
                             }
                         }
@@ -7224,7 +7225,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (validTargets.length !== 1) {
-                            ui.notifications.warn("Dead Weight requires exactly one target selected on the canvas within 15 feet of the thrall.");
+                            notify("warn", "Dead Weight requires exactly one target selected on the canvas within 15 feet of the thrall.");
                             break;
                         }
 
@@ -7240,7 +7241,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     callback: async () => {
                                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                                         if (currentFocus <= 0) {
-                                            return ui.notifications.warn("You have no Focus Points remaining!");
+                                            return notify("warn", "You have no Focus Points remaining!");
                                         }
                                         if (currentFocus > 0) await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                                         const targetsData = {};
@@ -7348,7 +7349,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     callback: async () => {
                                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                                         if (currentFocus <= 0) {
-                                            return ui.notifications.warn("You have no Focus Points remaining!");
+                                            return notify("warn", "You have no Focus Points remaining!");
                                         }
                                         if (currentFocus > 0) await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                                         
@@ -7382,7 +7383,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
 
                                         await spearSpell.toMessage(e);
-                                        ui.notifications.info("Draw your 15-foot line starting from the marked origin point.");
+                                        notifyForce("info", "Draw your 15-foot line starting from the marked origin point.");
                                     }
                                 },
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -7466,7 +7467,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (validTargets.length !== 1) {
-                            ui.notifications.warn("Blood Infusion requires exactly one target selected on the canvas within 15 feet of the thrall.");
+                            notify("warn", "Blood Infusion requires exactly one target selected on the canvas within 15 feet of the thrall.");
                             break;
                         }
 
@@ -7482,7 +7483,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     callback: async () => {
                                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                                         if (currentFocus <= 0) {
-                                            return ui.notifications.warn("You have no Focus Points remaining!");
+                                            return notify("warn", "You have no Focus Points remaining!");
                                         }
                                         if (currentFocus > 0) await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                                         const targetsData = {};
@@ -7601,7 +7602,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     callback: async (html, e) => {
                                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                                         if (currentFocus <= 0) {
-                                            return ui.notifications.warn("You have no Focus Points remaining!");
+                                            return notify("warn", "You have no Focus Points remaining!");
                                         }
                                         if (currentFocus > 0) await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                                     
@@ -7637,7 +7638,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
                                     
                                         await bombSpell.toMessage(e);
-                                        ui.notifications.info(`Click the Emanation button in chat and center it on the Bomb marker.`);
+                                        notifyForce("info", `Click the Emanation button in chat and center it on the Bomb marker.`);
                                     }
                                 },
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -7689,7 +7690,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (validTargets.length !== 1) {
-                            ui.notifications.warn("Life Tap requires exactly one target selected on the canvas within 30 feet of the thrall.");
+                            notify("warn", "Life Tap requires exactly one target selected on the canvas within 30 feet of the thrall.");
                             break;
                         }
 
@@ -7706,7 +7707,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                                         if (currentFocus <= 0) {
-                                            return ui.notifications.warn("You have no Focus Points remaining!");
+                                            return notify("warn", "You have no Focus Points remaining!");
                                         }
                                         if (currentFocus > 0) await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                                         const targetsData = {};
@@ -7765,7 +7766,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Muscle Barrier!");
+                            notify("warn", "You have no Focus Points to cast Muscle Barrier!");
                             break;
                         }
 
@@ -7781,7 +7782,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to cast Muscle Barrier.");
+                                notify("warn", "You must be within 30 feet of the thrall to cast Muscle Barrier.");
                                 break;
                             }
                         }
@@ -7795,7 +7796,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
 
                         if (potentialTargets.length === 0) {
-                            ui.notifications.error("Muscle Barrier Failed: Could not find a valid target or Necromancer token.");
+                            notify("error", "Muscle Barrier Failed: Could not find a valid target or Necromancer token.");
                             break;
                         }
 
@@ -7816,7 +7817,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         });
 
                         if (validTargets.length !== 1) {
-                            ui.notifications.error(`Muscle Barrier Failed: Found ${validTargets.length} valid targets within 15 feet. Ensure you or your ally are within 15 feet of the thrall.`);
+                            notify("error", `Muscle Barrier Failed: Found ${validTargets.length} valid targets within 15 feet. Ensure you or your ally are within 15 feet of the thrall.`);
                             break;
                         }
 
@@ -7825,7 +7826,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         const targetActor = targetToken.actor;
 
                         if (!targetActor) {
-                            ui.notifications.error("Muscle Barrier Failed: The targeted token has no character sheet.");
+                            notify("error", "Muscle Barrier Failed: The targeted token has no character sheet.");
                             break;
                         }
 
@@ -7880,7 +7881,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Bony Barrage!");
+                            notify("warn", "You have no Focus Points to cast Bony Barrage!");
                             break;
                         }
 
@@ -7896,7 +7897,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to cast Bony Barrage.");
+                                notify("warn", "You must be within 30 feet of the thrall to cast Bony Barrage.");
                                 break;
                             }
                         }
@@ -7953,7 +7954,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     callback: async () => {
                                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                                         if (currentFocus <= 0) {
-                                            return ui.notifications.warn("You have no Focus Points remaining!");
+                                            return notify("warn", "You have no Focus Points remaining!");
                                         }
                                         if (currentFocus > 0) await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                                         
@@ -7988,7 +7989,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }, 20000);
                                         
                                         await barrageSpell.toMessage(e);
-                                        ui.notifications.info("Draw your 30-foot cone starting from the marked origin point.");
+                                        notifyForce("info", "Draw your 30-foot cone starting from the marked origin point.");
                                     }
                                 },
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
@@ -8002,7 +8003,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         
                         const currentFocus = actor.system?.resources?.focus?.value || 0;
                         if (currentFocus === 0) {
-                            ui.notifications.warn("You have no Focus Points to cast Song of the Soul!");
+                            notify("warn", "You have no Focus Points to cast Song of the Soul!");
                             break;
                         }
 
@@ -8018,7 +8019,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 distanceToNecro = (Math.max(dx, dy) / canvas.grid.size) * (canvas.scene?.grid?.distance || 5);
                             }
                             if (distanceToNecro > 30) {
-                                ui.notifications.warn("You must be within 30 feet of the thrall to cast Song of the Soul.");
+                                notify("warn", "You must be within 30 feet of the thrall to cast Song of the Soul.");
                                 break;
                             }
                         }
@@ -8064,7 +8065,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             });
 
                             if (eligibleAllies.length === 0) {
-                                ui.notifications.warn("Song of the Soul Failed: No valid allies (or yourself) within 15 feet of the thrall.");
+                                notify("warn", "Song of the Soul Failed: No valid allies (or yourself) within 15 feet of the thrall.");
                                 break;
                             } else if (eligibleAllies.length === 1) {
                                 finalTarget = eligibleAllies[0];
@@ -8107,7 +8108,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         const isConstruct = traits.includes("construct");
                         
                         if (isConstruct && !isUndead) {
-                            ui.notifications.error("Song of the Soul Failed: Target must be a living or undead creature.");
+                            notify("error", "Song of the Soul Failed: Target must be a living or undead creature.");
                             break;
                         }
 
@@ -8191,7 +8192,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const actor = game.actors.get(this.necroId) || game.user.character;
 
                 if (!actor) {
-                    ui.notifications.warn("No Necromancer found! Please assign a character to your user.");
+                    notify("warn", "No Necromancer found! Please assign a character to your user.");
                     return;
                 }
 
@@ -8261,7 +8262,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     
                                     if (preset && preset.isUnique) {
                                         if (selectedUnique.has(val)) {
-                                            ui.notifications.error(`Summoning Ritual Failed: ${preset.name} is unique and cannot be summoned multiple times.`);
+                                            notify("error", `Summoning Ritual Failed: ${preset.name} is unique and cannot be summoned multiple times.`);
                                             return; 
                                         }
                                         selectedUnique.add(val);
@@ -8271,7 +8272,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                                 let currentSpawnIndex = 0;
 
-                                ui.notifications.info(`Click the canvas to place Summon ${currentSpawnIndex + 1}. Right-click to cancel.`);
+                                notifyForce("info", `Click the canvas to place Summon ${currentSpawnIndex + 1}. Right-click to cancel.`);
                                 document.body.style.cursor = "crosshair";
                                 canvas.app.view.style.cursor = "crosshair";
 
@@ -8337,7 +8338,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     }
 
                                     if (event.data.button === 2) {
-                                        ui.notifications.info("Summoning cancelled.");
+                                        notify("info", "Summoning cancelled.");
                                         cleanUp();
                                         return;
                                     }
@@ -8382,19 +8383,19 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     }
 
                                     currentSpawnIndex++;
-                                    ui.notifications.info(`Spawn request for Summon ${currentSpawnIndex} sent to GM...`);
+                                    notify("info", `Spawn request for Summon ${currentSpawnIndex} sent to GM...`);
 
                                     executeSpawn(finalPayload).catch(err => {
                                         console.error("Necromancer Helper | Spawn execution failed:", err);
-                                        ui.notifications.error("Failed to materialize the thrall.");
+                                        notify("error", "Failed to materialize the thrall.");
                                     });
 
                                     if (currentSpawnIndex < count) {
-                                        ui.notifications.info(`Place Summon ${currentSpawnIndex + 1}.`);
+                                        notifyForce("info", `Place Summon ${currentSpawnIndex + 1}.`);
                                         canvas.stage.once("pointerdown", interactionHandler);
                                     } else {
                                         cleanUp();
-                                        ui.notifications.info("All summons placed.");
+                                        notify("info", "All summons placed.");
                                     }
                                 };
 
@@ -8417,12 +8418,12 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             conjureConglomBtn.addEventListener("click", async (e) => {
                 e.preventDefault();
                 const actor = game.actors.get(this.necroId) || game.user.character;
-                if (!actor) return ui.notifications.warn("No Necromancer found!");
+                if (!actor) return notify("warn", "No Necromancer found!");
                 const conglomActor = await getOrImportActor("Conglomerate of Limbs");
                 if (!conglomActor) return;
 
                 const currentFocus = actor.system?.resources?.focus?.value || 0;
-                if (currentFocus === 0) return ui.notifications.warn("You have no Focus Points to conjure the Conglomerate!");
+                if (currentFocus === 0) return notify("warn", "You have no Focus Points to conjure the Conglomerate!");
 
                 await actor.update({ "system.resources.focus.value": currentFocus - 1 });
 
@@ -8430,7 +8431,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const bonusHP = Math.max(0, spellRank - 4) * 10;
                 const totalHP = 40 + bonusHP;
 
-                ui.notifications.info(`Click the canvas to place the Huge Conglomerate within 30 feet. Right-click to cancel.`);
+                notifyForce("info", `Click the canvas to place the Huge Conglomerate within 30 feet. Right-click to cancel.`);
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -8493,7 +8494,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     }
                     if (event.data.button === 2) {
                         await actor.update({ "system.resources.focus.value": currentFocus });
-                        ui.notifications.info("Conjuration cancelled.");
+                        notify("info", "Conjuration cancelled.");
                         cleanUp();
                         return;
                     }
@@ -8513,7 +8514,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         const dy = Math.abs(necroCenter.y - targetCenter.y);
                         const dist = (Math.max(dx, dy) / gridSize) * canvas.scene.grid.distance;
                         if (dist > 30) {
-                            ui.notifications.warn("The Conglomerate must be placed within 30 feet.");
+                            notify("warn", "The Conglomerate must be placed within 30 feet.");
                             canvas.stage.once("pointerdown", interactionHandler);
                             return;
                         }
@@ -8553,7 +8554,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 e.preventDefault();
                 const actor = game.actors.get(this.necroId) || game.user.character;
                 
-                if (!actor) return ui.notifications.warn("No Necromancer found!");
+                if (!actor) return notify("warn", "No Necromancer found!");
 
                 const sRank = Math.max(1, Math.ceil(actor.level / 2));
                 const count = 3 + Math.floor(Math.max(0, sRank - 3) / 3);
@@ -8562,7 +8563,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (!tendrilActor) return;
                 
                 const currentFocus = actor.system?.resources?.focus?.value || 0;
-                if (currentFocus === 0) return ui.notifications.warn("You have no Focus Points to conjure tendrils!");
+                if (currentFocus === 0) return notify("warn", "You have no Focus Points to conjure tendrils!");
                 
                 await actor.update({ "system.resources.focus.value": currentFocus - 1 });
                 
@@ -8611,7 +8612,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 await tendrilsSpell.setFlag("aoe-easy-resolve", "saveType", "reflex");
 
                 let currentSpawnIndex = 0;
-                ui.notifications.info(`Click the canvas to place Tendril ${currentSpawnIndex + 1} within 30 feet. Right-click to cancel.`);
+                notifyForce("info", `Click the canvas to place Tendril ${currentSpawnIndex + 1} within 30 feet. Right-click to cancel.`);
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -8673,7 +8674,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         if (currentSpawnIndex === 0) {
                             await actor.update({ "system.resources.focus.value": currentFocus });
                         }
-                        ui.notifications.info("Conjuration cancelled.");
+                        notify("info", "Conjuration cancelled.");
                         cleanUp();
                         return;
                     }
@@ -8692,7 +8693,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         const dy = Math.abs(necroCenter.y - targetCenter.y);
                         const dist = (Math.max(dx, dy) / canvas.grid.size) * canvas.scene.grid.distance;
                         if (dist > 30) {
-                            ui.notifications.warn("Bloody Tendrils must be placed within 30 feet.");
+                            notify("warn", "Bloody Tendrils must be placed within 30 feet.");
                             canvas.stage.once("pointerdown", interactionHandler);
                             return;
                         }
@@ -8765,11 +8766,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     await executeHazard(regionData, drawingData);
 
                     if (currentSpawnIndex < count) {
-                        ui.notifications.info(`Place Tendril ${currentSpawnIndex + 1}.`);
+                        notifyForce("info", `Place Tendril ${currentSpawnIndex + 1}.`);
                         canvas.stage.once("pointerdown", interactionHandler);
                     } else {
                         cleanUp();
-                        ui.notifications.info("All tendrils placed.");
+                        notify("info", "All tendrils placed.");
                     }
                 };
 
@@ -8788,7 +8789,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const tokenDoc = canvas.scene.tokens.get(tokenId);
                 if (tokenDoc) {
                     await executeDelete(tokenDoc.id);
-                    ui.notifications.info(`Dismissed ${tokenDoc.name}.`);
+                    notify("info", `Dismissed ${tokenDoc.name}.`);
                 }
             });
         });
