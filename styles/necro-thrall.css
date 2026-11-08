@@ -342,7 +342,8 @@
 }
 
 #wildcard-info,
-#portrait-info {
+#portrait-info,
+#subject-info {
     display: block;
     min-height: 1em;
     color: #9ca3af;

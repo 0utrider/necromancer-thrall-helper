@@ -17,3 +17,12 @@
 * Tactical GM Pings: When a player requests a spawn, the GM screen automatically pans to the target location, pings the map, and flashes a glowing tactical highlight box while awaiting confirmation.
 
   **Video of features as of 1.0.2 with more coming all the time:** https://www.youtube.com/watch?v=0kgbYnEZim8
+
+**Token art**
+* Wildcard art: any image path can be a pattern such as `path/to/art/thrall-*.webp`; one matching file is picked at random each time a thrall is summoned.
+* Animated art: token art can be a `.webm`. Dynamic token rings don't support animation, so the ring is skipped for animated art unless you also set a Ring Subject (a transparent cutout image).
+* Portraits and ring subjects: each look can have a still-image Portrait (shown in the Command Deck and chat cards) and a Ring Subject (the cutout the dynamic ring draws). If the art and these are all wildcards, files that share the same `*` text are paired, e.g. `thrall-03.webm` with `portrait-03.webp` and `subject-03.webp`.
+* Missing token packs: if a thrall or summon type points at art from a token pack that isn't installed, a bundled fallback image is used instead.
+
+**Credits**
+* The fallback image `assets/thrall.webp` comes from The Battle for Wesnoth (artist doofus-01, GPL v2+). Details are in [`assets/CREDITS.md`](assets/CREDITS.md).

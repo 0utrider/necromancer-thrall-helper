@@ -1,8 +1,9 @@
 import { isWildcardPath, isVideoPath, artKind, listWildcardMatches } from "../system/thrall-manager.js";
 
 const RING_HINTS = {
-    video: "Dynamic token rings don't support animated art.",
-    mixed: "Ring is skipped automatically for any video file selected."
+    video: "Dynamic token rings don't support animated art. Set a Ring Subject image to use the ring.",
+    mixed: "Ring is skipped automatically for any video file selected (unless a Ring Subject is set).",
+    cutout: "Ring requires transparent cutout art. Full-frame images will cover the ring."
 };
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
@@ -135,6 +136,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 html.querySelector("#new-thrall-name").value = target.name || "";
                 html.querySelector("#new-thrall-img").value = target.img || "";
                 html.querySelector("#new-thrall-portrait").value = target.portrait || "";
+                html.querySelector("#new-thrall-ring-subject").value = target.ringSubject || "";
                 updateAllInfo();
                 html.querySelector("#new-thrall-unique").checked = !!target.isUnique;
                 html.querySelector("#new-thrall-ring").checked = target.ring !== false;
@@ -175,15 +177,18 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         const updateRingHint = () => {
             const ringBox = html.querySelector("#new-thrall-ring");
             const hint = html.querySelector("#ring-hint");
-            const kind = artKind(html.querySelector("#new-thrall-img").value.trim());
+            const hasSubject = !!html.querySelector("#new-thrall-ring-subject").value.trim();
+            // An explicit ring subject (cutout) makes the ring usable whatever the token art is.
+            const kind = hasSubject ? "subject" : artKind(html.querySelector("#new-thrall-img").value.trim());
             ringBox.disabled = kind === "video";
-            ringBox.title = kind === "video" ? RING_HINTS.video : "";
-            if (hint) hint.textContent = RING_HINTS[kind] ?? "";
+            ringBox.title = RING_HINTS.cutout;
+            if (hint) hint.textContent = kind === "video" ? RING_HINTS.video : (kind === "mixed" ? RING_HINTS.mixed : RING_HINTS.cutout);
         };
 
         const imageFields = [
             { input: "#new-thrall-img", info: "#wildcard-info", wild: "#wildcard-btn", pick: "#img-pick-btn", type: "imagevideo", onChange: updateRingHint },
-            { input: "#new-thrall-portrait", info: "#portrait-info", wild: "#portrait-wildcard-btn", pick: "#portrait-pick-btn", type: "image" }
+            { input: "#new-thrall-portrait", info: "#portrait-info", wild: "#portrait-wildcard-btn", pick: "#portrait-pick-btn", type: "image" },
+            { input: "#new-thrall-ring-subject", info: "#subject-info", wild: "#subject-wildcard-btn", pick: "#subject-pick-btn", type: "image", onChange: updateRingHint }
         ].map(cfg => {
             const input = html.querySelector(cfg.input);
             const info = html.querySelector(cfg.info);
@@ -266,6 +271,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 const isUnique = html.querySelector("#new-thrall-unique").checked;
                 const useRing = html.querySelector("#new-thrall-ring").checked;
                 let portrait = html.querySelector("#new-thrall-portrait").value.trim();
+                let ringSubject = html.querySelector("#new-thrall-ring-subject").value.trim();
                 const imgScale = parseFloat(html.querySelector("#new-thrall-scale").value);
                 const ringLinked = html.querySelector("#new-thrall-ring-link").checked;
                 const ringScale = parseFloat(html.querySelector("#new-thrall-ring-scale").value);
@@ -311,8 +317,27 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                         }
                     }
                 }
+                if (ringSubject) {
+                    if (isVideoPath(ringSubject)) {
+                        ui.notifications.warn("The ring subject must be a still image (ideally a transparent cutout).");
+                        ringSubject = "";
+                    } else if (isWildcardPath(ringSubject)) {
+                        if ((await listWildcardMatches(ringSubject)).length === 0) {
+                            ui.notifications.warn(`No ring subjects match "${ringSubject}" yet.`);
+                        }
+                    } else {
+                        try {
+                            const response = await fetch(ringSubject, { method: "HEAD" });
+                            if (!response.ok) throw new Error("missing");
+                        } catch (err) {
+                            ui.notifications.warn(`Ring subject "${ringSubject}" was not found and was skipped.`);
+                            ringSubject = "";
+                        }
+                    }
+                }
                 const visuals = { ring: useRing, scale: imgScale };
                 if (portrait) visuals.portrait = portrait;
+                if (ringSubject) visuals.ringSubject = ringSubject;
                 if (!ringLinked) visuals.ringScale = ringScale;
 
                 const checkedCheckboxes = html.querySelectorAll("input[name='adjective']:checked");
@@ -367,7 +392,8 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         html.querySelector("#new-thrall-name").value = "";
         html.querySelector("#new-thrall-img").value = "";
         html.querySelector("#new-thrall-portrait").value = "";
-        html.querySelectorAll("#wildcard-info, #portrait-info").forEach(el => el.textContent = "");
+        html.querySelector("#new-thrall-ring-subject").value = "";
+        html.querySelectorAll("#wildcard-info, #portrait-info, #subject-info").forEach(el => el.textContent = "");
         html.querySelector("#new-thrall-ring-link").checked = true;
         html.querySelector("#new-thrall-ring-scale").value = 1.0;
         html.querySelector("#new-thrall-ring-scale").disabled = true;

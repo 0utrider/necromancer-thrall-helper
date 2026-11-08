@@ -1,3 +1,5 @@
+import { applyArtFallback } from "./thrall-manager.js";
+
 let socketlibSocket = undefined;
 
 async function requestSpawn(payload, sceneId) {
@@ -67,6 +69,7 @@ async function requestSpawn(payload, sceneId) {
         hidden: false
     });
 
+    applyArtFallback(spawnData);
     const createdTokens = await scene.createEmbeddedDocuments("Token", [spawnData]);
     
     if (createdTokens && createdTokens.length > 0 && isViewingScene) {
@@ -127,6 +130,7 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id) {
             sort: maxSort + 100, 
             hidden: false 
         });
+        applyArtFallback(spawnData);
         const createdTokens = await scene.createEmbeddedDocuments("Token", [spawnData]);
         
         if (createdTokens && createdTokens.length > 0 && canvas.scene?.id === scene.id) {

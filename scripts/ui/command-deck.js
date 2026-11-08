@@ -1,4 +1,4 @@
-import { prepareThrallPayload, getThrallPresets, resolveImagePair, tokenPortrait, isVideoPath, artKind } from "../system/thrall-manager.js";
+import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, artKind } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 
@@ -78,7 +78,7 @@ Hooks.once("ready", async () => {
                 if (!game.actors.find(a => a.name === name)) {
                     if (!folder) folder = await Folder.create({ name: "Necromancer Thralls", type: "Actor", color: "#4b5563" });
                     const entry = index.find(a => a.name === name);
-                    if (entry) await game.actors.importFromCompendium(pack, entry._id, { folder: folder.id });
+                    if (entry) await repairActorArt(await game.actors.importFromCompendium(pack, entry._id, { folder: folder.id }));
                 }
             }
         }
@@ -3155,24 +3155,21 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             const ringScale = actor.getFlag("necromancer-thrall-helper", `${typePrefix}RingScale`);
             const portrait = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Portrait`);
 
-            let videoArt = false;
-            if (img) {
-                const pair = await resolveImagePair(img, portrait);
-                videoArt = isVideoPath(pair.art);
-                payload.texture = payload.texture || {};
-                payload.texture.src = pair.art;
+            const ringSubjectPath = actor.getFlag("necromancer-thrall-helper", `${typePrefix}RingSubject`);
+
+            let ringBlocked = false;
+            if (img || ringSubjectPath) {
+                const set = await resolveImageSet(img || payload.texture?.src, { portrait, ringSubject: ringSubjectPath });
+                if (img) {
+                    payload.texture = payload.texture || {};
+                    payload.texture.src = set.art;
+                }
                 if (payload.ring) {
                     payload.ring.subject = payload.ring.subject || {};
-                    // Ring subject is image-only; null falls back to texture.src. Clear it explicitly,
-                    // because the base Thrall prototype has its own subject image.
-                    if (videoArt) {
-                        payload.ring.subject.texture = null;
-                    } else {
-                        payload.ring.subject.texture = pair.art;
-                    }
+                    ringBlocked = applyRingArt(payload, set, payload.ring.subject.texture);
                 }
-                if (pair.portrait) {
-                    foundry.utils.setProperty(payload, "flags.necromancer-thrall-helper.portrait", pair.portrait);
+                if (set.portrait) {
+                    foundry.utils.setProperty(payload, "flags.necromancer-thrall-helper.portrait", set.portrait);
                 }
             }
             if (useRing !== undefined) {
@@ -3182,7 +3179,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             // Dynamic rings don't support animated subjects, so skip the ring for video art. This is
             // decided on the resolved file (a wildcard can pick a webp, then a webm) and applied after
             // the saved ring preference, which is left untouched for still images.
-            if (videoArt && payload.ring) payload.ring.enabled = false;
+            if (ringBlocked && payload.ring) payload.ring.enabled = false;
             if (scale !== undefined) {
                 payload.texture = payload.texture || {};
                 payload.texture.scaleX = scale;
@@ -3320,11 +3317,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 for (const map of Object.values(configKeys)) {
                     map.portrait = map.img.replace(/Img$/, "Portrait");
                     map.ringScale = map.scale.replace(/Scale$/, "RingScale");
+                    map.ringSubject = map.img.replace(/Img$/, "RingSubject");
                 }
 
                 const getCfg = (type) => ({
                     img: actor.getFlag("necromancer-thrall-helper", configKeys[type].img) || "",
                     portrait: actor.getFlag("necromancer-thrall-helper", configKeys[type].portrait) || "",
+                    ringSubject: actor.getFlag("necromancer-thrall-helper", configKeys[type].ringSubject) || "",
                     ringScale: actor.getFlag("necromancer-thrall-helper", configKeys[type].ringScale),
                     ring: actor.getFlag("necromancer-thrall-helper", configKeys[type].ring) ?? true,
                     scale: actor.getFlag("necromancer-thrall-helper", configKeys[type].scale) ?? 1.0
@@ -3348,6 +3347,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 <label style="flex: 1;">Portrait:</label>
                                 <input type="text" id="${key}-portrait-path" value="${c.portrait}" placeholder="Optional still image or wildcard (blank = token art)" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
                                 <button type="button" class="img-picker-btn" data-target="${key}-portrait-path" data-type="image" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
+                            </div>
+                            <div class="form-group" style="display: flex; gap: 5px; margin-bottom: 15px; align-items: center;">
+                                <label style="flex: 1;">Ring Subject:</label>
+                                <input type="text" id="${key}-subject-path" value="${c.ringSubject}" placeholder="Optional transparent cutout for the ring (blank = token art)" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
+                                <button type="button" class="img-picker-btn" data-target="${key}-subject-path" data-type="image" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
                             </div>
                             <div class="form-group" style="display: flex; justify-content: space-between; margin-bottom: 5px; align-items: center;">
                                 <label>Enable Token Ring:</label>
@@ -3416,14 +3420,19 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         // Animated art can't use the dynamic ring: disable the box (keeping the saved
                         // preference) for video art, and note it for wildcards that could pick either.
                         const syncRingHint = (key) => {
-                            const kind = artKind(dialogHtml.find(`#${key}-img-path`).val().trim());
+                            const hasSubject = !!dialogHtml.find(`#${key}-subject-path`).val().trim();
+                            const kind = hasSubject ? "subject" : artKind(dialogHtml.find(`#${key}-img-path`).val().trim());
                             const box = dialogHtml.find(`#${key}-ring-enabled`);
-                            const text = { video: "Dynamic token rings don't support animated art.", mixed: "Ring is skipped automatically for any video file selected." }[kind] ?? "";
-                            box.prop("disabled", kind === "video").attr("title", kind === "video" ? text : "");
+                            const cutout = "Ring requires transparent cutout art. Full-frame images will cover the ring.";
+                            const text = {
+                                video: "Dynamic token rings don't support animated art. Set a Ring Subject image to use the ring.",
+                                mixed: "Ring is skipped automatically for any video file selected (unless a Ring Subject is set)."
+                            }[kind] ?? cutout;
+                            box.prop("disabled", kind === "video").attr("title", cutout);
                             dialogHtml.find(`#${key}-ring-hint`).text(text);
                         };
                         for (const key of Object.keys(configKeys)) {
-                            dialogHtml.find(`#${key}-img-path`).on("input change", () => syncRingHint(key));
+                            dialogHtml.find(`#${key}-img-path, #${key}-subject-path`).on("input change", () => syncRingHint(key));
                             syncRingHint(key);
                         }
 
@@ -3451,6 +3460,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     updates[`flags.necromancer-thrall-helper.${map.ring}`] = dialogHtml.find(`#${key}-ring-enabled`).is(":checked");
                                     updates[`flags.necromancer-thrall-helper.${map.scale}`] = parseFloat(dialogHtml.find(`#${key}-img-scale`).val());
                                     updates[`flags.necromancer-thrall-helper.${map.portrait}`] = dialogHtml.find(`#${key}-portrait-path`).val().trim();
+                                    updates[`flags.necromancer-thrall-helper.${map.ringSubject}`] = dialogHtml.find(`#${key}-subject-path`).val().trim();
                                     if (dialogHtml.find(`#${key}-ring-link`).is(":checked")) {
                                         updates[`flags.necromancer-thrall-helper.-=${map.ringScale}`] = null;
                                     } else {
