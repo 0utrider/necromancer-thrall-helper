@@ -1,4 +1,4 @@
-import { prepareThrallPayload, getThrallPresets, resolveImagePath } from "../system/thrall-manager.js";
+import { prepareThrallPayload, getThrallPresets, resolveImagePair, tokenPortrait } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 
@@ -156,7 +156,7 @@ Hooks.once("ready", async () => {
         const originName = msg?.flags?.["aoe-easy-resolve"]?.itemName || payload.originItem?.name || "";
         
         const pushReceipt = (tokenId, token, content, saveNote) => {
-            window.aoeEasyResolveApplying?.receipt.push({ tokenId, speaker: { alias: token.name }, img: token.document?.texture?.src, content, saveNote });
+            window.aoeEasyResolveApplying?.receipt.push({ tokenId, speaker: { alias: token.name }, img: tokenPortrait(token.document), content, saveNote });
         };
 
         if (originName.includes("Living Graveyard")) {
@@ -226,7 +226,7 @@ Hooks.once("ready", async () => {
                     await caster.update({ "system.attributes.hp.value": currentHP + actualHealed });
                     const necroToken = caster.getActiveTokens()[0];
                     if (necroToken && canvas.ready) canvas.interface.createScrollingText(necroToken.center, `+${actualHealed} HP`, { anchor: CONST.TEXT_ANCHOR_POINTS.TOP, fill: 0x4ade80, direction: CONST.TEXT_ANCHOR_POINTS.UP });
-                    window.aoeEasyResolveApplying?.receipt.push({ tokenId: necroToken?.id || caster.id, speaker: { alias: caster.name }, img: necroToken?.document?.texture?.src || caster.img, content: `<span style="color: #4ade80; font-weight: bold;">Siphoned ${totalSiphonedDamage} life force, regaining ${actualHealed} HP (Cap: ${halfMaxHP} HP).</span>`, saveNote: "Siphon Harvest" });
+                    window.aoeEasyResolveApplying?.receipt.push({ tokenId: necroToken?.id || caster.id, speaker: { alias: caster.name }, img: tokenPortrait(necroToken?.document) || caster.img, content: `<span style="color: #4ade80; font-weight: bold;">Siphoned ${totalSiphonedDamage} life force, regaining ${actualHealed} HP (Cap: ${halfMaxHP} HP).</span>`, saveNote: "Siphon Harvest" });
                 }
             }
         }
@@ -2337,7 +2337,7 @@ globalThis.NecroThrallHelper.checkNightmareHaunt = async (nightmareTokenDoc, spe
         targetsData[t.document.id] = {
             id: t.document.id,
             name: t.document.name,
-            img: t.document.texture?.src || t.actor?.img,
+            img: tokenPortrait(t.document),
             hasRolled: false,
             rollTotal: null,
             degreeOfSuccess: null,
@@ -2784,7 +2784,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     }
                 }
 
-                let imgPath = t.texture?.src || t.actor?.img || "icons/svg/mystery-man.svg";
+                let imgPath = tokenPortrait(t) || "icons/svg/mystery-man.svg";
                 
                 if (imgPath && !imgPath.includes("mystery-man") && !imgPath.startsWith("data:") && !imgPath.startsWith("blob:")) {
                     this.imageCache[t.id] = imgPath;
@@ -3152,14 +3152,19 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             const img = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Img`);
             const useRing = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Ring`);
             const scale = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Scale`);
+            const ringScale = actor.getFlag("necromancer-thrall-helper", `${typePrefix}RingScale`);
+            const portrait = actor.getFlag("necromancer-thrall-helper", `${typePrefix}Portrait`);
 
             if (img) {
-                const resolvedImg = await resolveImagePath(img);
+                const pair = await resolveImagePair(img, portrait);
                 payload.texture = payload.texture || {};
-                payload.texture.src = resolvedImg;
+                payload.texture.src = pair.art;
                 if (payload.ring) {
                     payload.ring.subject = payload.ring.subject || {};
-                    payload.ring.subject.texture = resolvedImg;
+                    payload.ring.subject.texture = pair.art;
+                }
+                if (pair.portrait) {
+                    foundry.utils.setProperty(payload, "flags.necromancer-thrall-helper.portrait", pair.portrait);
                 }
             }
             if (useRing !== undefined) {
@@ -3170,9 +3175,10 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 payload.texture = payload.texture || {};
                 payload.texture.scaleX = scale;
                 payload.texture.scaleY = scale;
-                if (payload.ring && payload.ring.subject) {
-                    payload.ring.subject.scale = scale;
-                }
+            }
+            const effectiveRingScale = ringScale ?? scale;
+            if (effectiveRingScale !== undefined && payload.ring?.subject) {
+                payload.ring.subject.scale = effectiveRingScale;
             }
             return payload;
         };
@@ -3298,8 +3304,16 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     "conglom": { label: "Conglomerate of Limbs", img: "conglomImg", ring: "conglomRing", scale: "conglomScale" }
                 };
 
+                // Portrait and ring-scale flags are derived from the existing key names.
+                for (const map of Object.values(configKeys)) {
+                    map.portrait = map.img.replace(/Img$/, "Portrait");
+                    map.ringScale = map.scale.replace(/Scale$/, "RingScale");
+                }
+
                 const getCfg = (type) => ({
                     img: actor.getFlag("necromancer-thrall-helper", configKeys[type].img) || "",
+                    portrait: actor.getFlag("necromancer-thrall-helper", configKeys[type].portrait) || "",
+                    ringScale: actor.getFlag("necromancer-thrall-helper", configKeys[type].ringScale),
                     ring: actor.getFlag("necromancer-thrall-helper", configKeys[type].ring) ?? true,
                     scale: actor.getFlag("necromancer-thrall-helper", configKeys[type].scale) ?? 1.0
                 });
@@ -3314,9 +3328,14 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     groupsHtml += `
                         <div class="summon-cfg-group" data-target="${key}" style="display: ${key === 'thrall' ? 'block' : 'none'}; margin-top: 10px;">
                             <div class="form-group" style="display: flex; gap: 5px; margin-bottom: 15px; align-items: center;">
-                                <label style="flex: 1;">Image:</label>
-                                <input type="text" id="${key}-img-path" value="${c.img}" placeholder="path/to/art.webp or wildcard: path/thrall-*.webp" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
-                                <button type="button" class="img-picker-btn" data-target="${key}-img-path" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
+                                <label style="flex: 1;">Token Art:</label>
+                                <input type="text" id="${key}-img-path" value="${c.img}" placeholder="path/art.webp, .webm, or wildcard: path/thrall-*.webm" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
+                                <button type="button" class="img-picker-btn" data-target="${key}-img-path" data-type="imagevideo" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
+                            </div>
+                            <div class="form-group" style="display: flex; gap: 5px; margin-bottom: 15px; align-items: center;">
+                                <label style="flex: 1;">Portrait:</label>
+                                <input type="text" id="${key}-portrait-path" value="${c.portrait}" placeholder="Optional still image or wildcard (blank = token art)" style="flex: 3; background: rgba(0,0,0,0.5); color: #fff; border: 1px solid #555;">
+                                <button type="button" class="img-picker-btn" data-target="${key}-portrait-path" data-type="image" style="flex: 0 0 30px; height: 26px; line-height: 1; padding: 0;"><i class="fas fa-file-import"></i></button>
                             </div>
                             <div class="form-group" style="display: flex; justify-content: space-between; margin-bottom: 5px; align-items: center;">
                                 <label>Enable Token Ring:</label>
@@ -3325,9 +3344,20 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
                                 <label>Image Scale:</label>
                                 <div style="display: flex; align-items: center; gap: 8px;">
-                                    <input type="range" class="scale-slider" id="${key}-img-scale" data-val-target="${key}-scale-val" min="0.5" max="5" step="0.1" value="${c.scale}" style="width: 100px;">
+                                    <input type="range" class="scale-slider" id="${key}-img-scale" data-val-target="${key}-scale-val" min="0.25" max="5" step="0.05" value="${c.scale}" style="width: 100px;">
                                     <span id="${key}-scale-val" style="min-width: 25px; text-align: right;">${c.scale}</span>
                                 </div>
+                            </div>
+                            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-top: 5px;">
+                                <label>Ring Subject Scale:</label>
+                                <div style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="range" class="scale-slider" id="${key}-ring-scale" data-val-target="${key}-ring-scale-val" min="0.5" max="5" step="0.05" value="${c.ringScale ?? c.scale}" style="width: 100px;" ${c.ringScale === undefined ? "disabled" : ""}>
+                                    <span id="${key}-ring-scale-val" style="min-width: 25px; text-align: right;">${c.ringScale ?? c.scale}</span>
+                                </div>
+                            </div>
+                            <div class="form-group" style="display: flex; justify-content: space-between; margin-top: 3px;">
+                                <label>Ring scale matches art scale:</label>
+                                <input type="checkbox" id="${key}-ring-link" ${c.ringScale === undefined ? "checked" : ""}>
                             </div>
                         </div>
                     `;
@@ -3359,7 +3389,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const targetId = $(evt.currentTarget).data("target");
                             const inputElt = dialogHtml.find(`#${targetId}`);
                             new FilePicker({
-                                type: "image",
+                                type: $(evt.currentTarget).data("type") || "image",
                                 current: inputElt.val(),
                                 callback: (path) => inputElt.val(path)
                             }).render(true);
@@ -3369,6 +3399,19 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const targetId = $(evt.currentTarget).data("val-target");
                             dialogHtml.find(`#${targetId}`).text(evt.target.value);
                         });
+
+                        // Keep the ring scale slider in step with the art scale while linked.
+                        const syncRing = (key) => {
+                            const linked = dialogHtml.find(`#${key}-ring-link`).is(":checked");
+                            const ring = dialogHtml.find(`#${key}-ring-scale`);
+                            ring.prop("disabled", linked);
+                            if (linked) ring.val(dialogHtml.find(`#${key}-img-scale`).val());
+                            dialogHtml.find(`#${key}-ring-scale-val`).text(ring.val());
+                        };
+                        for (const key of Object.keys(configKeys)) {
+                            dialogHtml.find(`#${key}-ring-link`).on("change", () => syncRing(key));
+                            dialogHtml.find(`#${key}-img-scale`).on("input", () => syncRing(key));
+                        }
                     },
                     buttons: {
                         save: {
@@ -3380,6 +3423,12 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     updates[`flags.necromancer-thrall-helper.${map.img}`] = dialogHtml.find(`#${key}-img-path`).val();
                                     updates[`flags.necromancer-thrall-helper.${map.ring}`] = dialogHtml.find(`#${key}-ring-enabled`).is(":checked");
                                     updates[`flags.necromancer-thrall-helper.${map.scale}`] = parseFloat(dialogHtml.find(`#${key}-img-scale`).val());
+                                    updates[`flags.necromancer-thrall-helper.${map.portrait}`] = dialogHtml.find(`#${key}-portrait-path`).val().trim();
+                                    if (dialogHtml.find(`#${key}-ring-link`).is(":checked")) {
+                                        updates[`flags.necromancer-thrall-helper.-=${map.ringScale}`] = null;
+                                    } else {
+                                        updates[`flags.necromancer-thrall-helper.${map.ringScale}`] = parseFloat(dialogHtml.find(`#${key}-ring-scale`).val());
+                                    }
                                 }
                                 await actor.update(updates);
                                 ui.notifications.info("Summon configurations updated successfully.");
@@ -4022,7 +4071,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 return dist <= ((20 / canvas.scene.grid.distance) * gridSize);
                             });
                             validTargets.forEach(t => {
-                                targetsData[t.id] = { id: t.id, name: t.name, img: t.document.texture.src, hasRolled: false, isHealing: false, isImmune: false, hasApplied: false };
+                                targetsData[t.id] = { id: t.id, name: t.name, img: tokenPortrait(t.document), hasRolled: false, isHealing: false, isImmune: false, hasApplied: false };
                             });
     
                             const templatePath = "modules/aoe-easy-resolve/templates/chat-card.hbs";
@@ -4320,7 +4369,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     const targetsData = {};
                     validTargets.forEach(t => {
                         targetsData[t.document.id] = {
-                            id: t.document.id, name: t.document.name, img: t.document.texture?.src || t.actor?.img,
+                            id: t.document.id, name: t.document.name, img: tokenPortrait(t.document),
                             hasRolled: false, rollTotal: null, degreeOfSuccess: null,
                             isHealing: false, isImmune: false, hasApplied: false
                         };
@@ -5506,7 +5555,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         targetsData[targetToken.document.id] = {
                                             id: targetToken.document.id,
                                             name: targetToken.document.name,
-                                            img: targetToken.document.texture.src,
+                                            img: tokenPortrait(targetToken.document),
                                             hasRolled: false,
                                             rollTotal: null,
                                             degreeOfSuccess: null,
@@ -5636,7 +5685,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         targetsData[targetToken.document.id] = {
                                             id: targetToken.document.id,
                                             name: targetToken.document.name,
-                                            img: targetToken.document.texture.src,
+                                            img: tokenPortrait(targetToken.document),
                                             hasRolled: false,
                                             rollTotal: null,
                                             degreeOfSuccess: null,
@@ -6130,7 +6179,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const targetsData = {};
                             validTargets.forEach(t => {
                                 targetsData[t.document.id] = {
-                                    id: t.document.id, name: t.document.name, img: t.document.texture?.src || t.actor?.img,
+                                    id: t.document.id, name: t.document.name, img: tokenPortrait(t.document),
                                     hasRolled: false, rollTotal: null, degreeOfSuccess: null,
                                     isHealing: false, isImmune: false, hasApplied: false
                                 };
@@ -6805,7 +6854,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                             targetsData[t.document.id] = {
                                                 id: t.document.id,
                                                 name: t.document.name,
-                                                img: t.document.texture.src,
+                                                img: tokenPortrait(t.document),
                                                 hasRolled: false,
                                                 rollTotal: null,
                                                 degreeOfSuccess: null,
@@ -6969,7 +7018,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         targetsData[targetToken.document.id] = {
                                             id: targetToken.document.id,
                                             name: targetToken.document.name,
-                                            img: targetToken.document.texture.src,
+                                            img: tokenPortrait(targetToken.document),
                                             hasRolled: false,
                                             rollTotal: null,
                                             degreeOfSuccess: null,
@@ -7126,7 +7175,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         targetsData[targetToken.document.id] = {
                                             id: targetToken.document.id,
                                             name: targetToken.document.name,
-                                            img: targetToken.document.texture.src,
+                                            img: tokenPortrait(targetToken.document),
                                             hasRolled: false,
                                             rollTotal: null,
                                             degreeOfSuccess: null,
@@ -7368,7 +7417,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         targetsData[targetToken.document.id] = {
                                             id: targetToken.document.id,
                                             name: targetToken.document.name,
-                                            img: targetToken.document.texture.src,
+                                            img: tokenPortrait(targetToken.document),
                                             hasRolled: false,
                                             rollTotal: null,
                                             degreeOfSuccess: null,
@@ -7592,7 +7641,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         targetsData[targetToken.document.id] = {
                                             id: targetToken.document.id,
                                             name: targetToken.document.name,
-                                            img: targetToken.document.texture.src,
+                                            img: tokenPortrait(targetToken.document),
                                             hasRolled: false,
                                             rollTotal: null,
                                             degreeOfSuccess: null,

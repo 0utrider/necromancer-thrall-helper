@@ -1,4 +1,4 @@
-import { isWildcardPath, listWildcardMatches } from "../system/thrall-manager.js";
+import { isWildcardPath, isVideoPath, listWildcardMatches } from "../system/thrall-manager.js";
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
@@ -32,9 +32,17 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     async _prepareContext(options) {
         const customFamily = this.actor.getFlag("necromancer-thrall-helper", "familyTree") || [];
         const presets = await Promise.all(customFamily.map(async (p) => {
-            if (!isWildcardPath(p.img)) return { ...p, displayImg: p.img };
-            const matches = await listWildcardMatches(p.img);
-            return { ...p, displayImg: matches[0] ?? "systems/pf2e/icons/default-icons/npc.svg", isWildcard: true, matchCount: matches.length };
+            // The list thumbnail is an <img>, so prefer the portrait and skip animated art.
+            const thumbSource = p.portrait || p.img;
+            const thumbMatches = isWildcardPath(thumbSource) ? await listWildcardMatches(thumbSource) : [];
+            const thumb = isWildcardPath(thumbSource) ? thumbMatches[0] : thumbSource;
+            const artMatches = isWildcardPath(p.img) ? (await listWildcardMatches(p.img)).length : 0;
+            return {
+                ...p,
+                displayImg: thumb && !isVideoPath(thumb) ? thumb : "systems/pf2e/icons/default-icons/npc.svg",
+                isWildcard: isWildcardPath(p.img) || isWildcardPath(p.portrait),
+                matchCount: artMatches || thumbMatches.length
+            };
         }));
         return { presets };
     }
@@ -121,11 +129,18 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
                 html.querySelector("#new-thrall-name").value = target.name || "";
                 html.querySelector("#new-thrall-img").value = target.img || "";
-                updateWildcardInfo();
+                html.querySelector("#new-thrall-portrait").value = target.portrait || "";
+                updateAllInfo();
                 html.querySelector("#new-thrall-unique").checked = !!target.isUnique;
                 html.querySelector("#new-thrall-ring").checked = target.ring !== false;
                 html.querySelector("#new-thrall-scale").value = target.scale ?? 1.0;
                 html.querySelector("#new-thrall-scale-val").textContent = target.scale ?? 1.0;
+                const ringLinked = target.ringScale === undefined;
+                const ringScaleValue = target.ringScale ?? target.scale ?? 1.0;
+                html.querySelector("#new-thrall-ring-link").checked = ringLinked;
+                html.querySelector("#new-thrall-ring-scale").value = ringScaleValue;
+                html.querySelector("#new-thrall-ring-scale").disabled = ringLinked;
+                html.querySelector("#new-thrall-ring-scale-val").textContent = ringScaleValue;
 
                 const checkboxes = html.querySelectorAll("input[name='adjective']");
                 const customAdjs = [];
@@ -148,51 +163,57 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 saveBtn.innerHTML = '<i class="fas fa-save"></i> Save Changes';
             });
         });
-        const imgInput = html.querySelector("#new-thrall-img");
-        const wildcardInfo = html.querySelector("#wildcard-info");
-        const updateWildcardInfo = async () => {
-            if (!wildcardInfo) return;
-            const val = imgInput.value.trim();
-            if (!isWildcardPath(val)) {
-                wildcardInfo.textContent = "";
-                return;
-            }
-            const count = (await listWildcardMatches(val)).length;
-            wildcardInfo.textContent = count
-                ? `${count} image${count === 1 ? "" : "s"} match - one is picked at random each time this thrall is summoned.`
-                : "No images match this pattern (yet).";
-        };
-        imgInput?.addEventListener("input", updateWildcardInfo);
-        updateWildcardInfo();
+        // Each image field supports wildcards (path/thrall-*.webp), a match count,
+        // a "make wildcard" button and a file picker.
+        const imageFields = [
+            { input: "#new-thrall-img", info: "#wildcard-info", wild: "#wildcard-btn", pick: "#img-pick-btn", type: "imagevideo" },
+            { input: "#new-thrall-portrait", info: "#portrait-info", wild: "#portrait-wildcard-btn", pick: "#portrait-pick-btn", type: "image" }
+        ].map(cfg => {
+            const input = html.querySelector(cfg.input);
+            const info = html.querySelector(cfg.info);
+            const update = async () => {
+                if (!info) return;
+                const val = input.value.trim();
+                if (!isWildcardPath(val)) {
+                    info.textContent = "";
+                    return;
+                }
+                const count = (await listWildcardMatches(val)).length;
+                info.textContent = count
+                    ? `${count} file${count === 1 ? "" : "s"} match - one is picked at random each time this thrall is summoned.`
+                    : "No files match this pattern (yet).";
+            };
+            input?.addEventListener("input", update);
 
-        // Turn "art/thrall-01.webp" into "art/thrall-*.webp"
-        const wildcardBtn = html.querySelector("#wildcard-btn");
-        if (wildcardBtn) {
-            wildcardBtn.addEventListener("click", (e) => {
+            // Turn "art/thrall-01.webp" into "art/thrall-*.webp"
+            html.querySelector(cfg.wild)?.addEventListener("click", (e) => {
                 e.preventDefault();
-                const val = imgInput.value.trim();
+                const val = input.value.trim();
                 if (!val || isWildcardPath(val)) return;
                 const wild = val.replace(/\d+(\.[^./]+)$/, "*$1");
                 if (wild === val) {
                     return ui.notifications.warn("Couldn't find a number to replace. Type a pattern like path/thrall-*.webp instead.");
                 }
-                imgInput.value = wild;
-                updateWildcardInfo();
+                input.value = wild;
+                update();
             });
-        }
-        const filePickerBtn = html.querySelector(".file-picker-btn");
-        if (filePickerBtn) {
-            filePickerBtn.addEventListener("click", (e) => {
+
+            html.querySelector(cfg.pick)?.addEventListener("click", (e) => {
                 e.preventDefault();
                 new FilePicker({
-                    type: "image",
+                    type: cfg.type,
+                    current: input.value,
                     callback: (path) => {
-                        html.querySelector("#new-thrall-img").value = path;
-                        updateWildcardInfo();
+                        input.value = path;
+                        update();
                     }
                 }).render(true);
             });
-        }
+            return { update };
+        });
+        const updateAllInfo = () => imageFields.forEach(f => f.update());
+        updateAllInfo();
+
         const selectAllBtn = html.querySelector("#select-all-adj-btn");
         if (selectAllBtn) {
             selectAllBtn.addEventListener("click", (e) => {
@@ -205,11 +226,19 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
             });
         }
         const scaleSlider = html.querySelector("#new-thrall-scale");
-        if (scaleSlider) {
-            scaleSlider.addEventListener("input", (e) => {
-                html.querySelector("#new-thrall-scale-val").textContent = e.target.value;
-            });
-        }
+        const ringSlider = html.querySelector("#new-thrall-ring-scale");
+        const ringLink = html.querySelector("#new-thrall-ring-link");
+        const syncRingSlider = () => {
+            ringSlider.disabled = ringLink.checked;
+            if (ringLink.checked) ringSlider.value = scaleSlider.value;
+            html.querySelector("#new-thrall-ring-scale-val").textContent = ringSlider.value;
+        };
+        scaleSlider?.addEventListener("input", (e) => {
+            html.querySelector("#new-thrall-scale-val").textContent = e.target.value;
+            if (ringLink.checked) syncRingSlider();
+        });
+        ringSlider?.addEventListener("input", syncRingSlider);
+        ringLink?.addEventListener("change", syncRingSlider);
         const saveBtn = html.querySelector("#save-thrall-btn");
         if (saveBtn) {
             saveBtn.addEventListener("click", async (e) => {
@@ -219,7 +248,10 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 const customAdjRaw = html.querySelector("#new-thrall-custom-adj").value.trim();
                 const isUnique = html.querySelector("#new-thrall-unique").checked;
                 const useRing = html.querySelector("#new-thrall-ring").checked;
+                let portrait = html.querySelector("#new-thrall-portrait").value.trim();
                 const imgScale = parseFloat(html.querySelector("#new-thrall-scale").value);
+                const ringLinked = html.querySelector("#new-thrall-ring-link").checked;
+                const ringScale = parseFloat(html.querySelector("#new-thrall-ring-scale").value);
 
                 if (!name) {
                     ui.notifications.warn("A thrall name is required.");
@@ -244,6 +276,28 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                     }
                 }
 
+                if (portrait) {
+                    if (isVideoPath(portrait)) {
+                        ui.notifications.warn("Portraits must be still images. Animated files can only be used for token art.");
+                        portrait = "";
+                    } else if (isWildcardPath(portrait)) {
+                        if ((await listWildcardMatches(portrait)).length === 0) {
+                            ui.notifications.warn(`No portraits match "${portrait}" yet. The token art is used until some exist.`);
+                        }
+                    } else {
+                        try {
+                            const response = await fetch(portrait, { method: "HEAD" });
+                            if (!response.ok) throw new Error("missing");
+                        } catch (err) {
+                            ui.notifications.warn(`Portrait "${portrait}" was not found. Using the token art instead.`);
+                            portrait = "";
+                        }
+                    }
+                }
+                const visuals = { ring: useRing, scale: imgScale };
+                if (portrait) visuals.portrait = portrait;
+                if (!ringLinked) visuals.ringScale = ringScale;
+
                 const checkedCheckboxes = html.querySelectorAll("input[name='adjective']:checked");
                 let adjectives = Array.from(checkedCheckboxes).map(cb => cb.value);
 
@@ -262,7 +316,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                                 name: name,
                                 img: img,
                                 adjectives: adjectives,
-                                isUnique: isUnique, ring: useRing, scale: imgScale
+                                isUnique: isUnique, ...visuals
                             };
                         }
                         return p;
@@ -279,7 +333,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                         name: name,
                         img: img,
                         adjectives: adjectives,
-                        isUnique: isUnique, ring: useRing, scale: imgScale
+                        isUnique: isUnique, ...visuals
                     });
                 }
 
@@ -295,8 +349,12 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         html.querySelector("#builder-heading").textContent = "Draft New Thrall";
         html.querySelector("#new-thrall-name").value = "";
         html.querySelector("#new-thrall-img").value = "";
-        const info = html.querySelector("#wildcard-info");
-        if (info) info.textContent = "";
+        html.querySelector("#new-thrall-portrait").value = "";
+        html.querySelectorAll("#wildcard-info, #portrait-info").forEach(el => el.textContent = "");
+        html.querySelector("#new-thrall-ring-link").checked = true;
+        html.querySelector("#new-thrall-ring-scale").value = 1.0;
+        html.querySelector("#new-thrall-ring-scale").disabled = true;
+        html.querySelector("#new-thrall-ring-scale-val").textContent = "1";
         html.querySelector("#new-thrall-custom-adj").value = "";
         html.querySelector("#new-thrall-ring").checked = true;
         html.querySelector("#new-thrall-scale").value = 1.0;

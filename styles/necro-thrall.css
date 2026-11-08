@@ -336,7 +336,13 @@
     color: #9ca3af;
 }
 
-#wildcard-info {
+.field-label small {
+    color: #9ca3af;
+    font-weight: normal;
+}
+
+#wildcard-info,
+#portrait-info {
     display: block;
     min-height: 1em;
     color: #9ca3af;

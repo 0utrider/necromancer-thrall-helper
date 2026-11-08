@@ -94,6 +94,56 @@ export async function resolveImagePath(path) {
     return pick;
 }
 
+const VIDEO_EXT = /\.(webm|mp4|m4v)$/i;
+
+/** True for video paths (including wildcard patterns such as `art/thrall-*.webm`). */
+export function isVideoPath(path) {
+    return typeof path === "string" && VIDEO_EXT.test(path);
+}
+
+function wildcardCapture(pattern, file) {
+    try {
+        const re = new RegExp("^" + pattern.split("*").map(p => p.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("(.*)") + "$");
+        return decodeURIComponent(file).match(re)?.[1] ?? null;
+    } catch (err) {
+        return null;
+    }
+}
+
+/**
+ * Resolve token art and portrait together. When both are wildcards and the art file's `*`
+ * text also exists in the portrait pattern (thrall-03.webm -> portrait-03.webp), the matching
+ * portrait is used; otherwise a portrait is picked at random.
+ */
+export async function resolveImagePair(art, portrait) {
+    const resolvedArt = await resolveImagePath(art);
+    if (!portrait) return { art: resolvedArt, portrait: null };
+    if (!isWildcardPath(portrait)) return { art: resolvedArt, portrait };
+    if (isWildcardPath(art)) {
+        const key = wildcardCapture(decodeURIComponent(art), resolvedArt);
+        if (key !== null) {
+            const matches = await listWildcardMatches(portrait);
+            const paired = matches.find(f => wildcardCapture(portrait, f) === key);
+            if (paired) return { art: resolvedArt, portrait: paired };
+        }
+    }
+    return { art: resolvedArt, portrait: await resolveImagePath(portrait) };
+}
+
+/**
+ * An image that an <img> tag can show for a token: its stored portrait if it has one, else
+ * its art when that is an image, else the actor image (animated art can't go in an <img>).
+ */
+export function tokenPortrait(tokenDoc) {
+    if (!tokenDoc) return FALLBACK_IMG;
+    const portrait = tokenDoc.flags?.["necromancer-thrall-helper"]?.portrait;
+    if (portrait) return portrait;
+    const src = tokenDoc.texture?.src;
+    if (src && !isVideoPath(src)) return src;
+    const actorImg = tokenDoc.actor?.img;
+    return actorImg && !isVideoPath(actorImg) ? actorImg : FALLBACK_IMG;
+}
+
 const STANDARD_ADJECTIVES = [
     "Angry", "Soggy", "Vengeful", "Festering", "Hollow", 
     "Shivering", "Wrinkled", "Spiteful", "Damp", "Putrid", 
@@ -165,6 +215,7 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     };
     
     let preset;
+    let portraitPath = null;
     if (presetId === "random" && customPresets.length > 0) {
         const activePresetIds = canvas.scene ? canvas.scene.tokens.map(t => t.flags["necromancer-thrall-helper"]?.presetId) : [];
         const availablePresets = customPresets.filter(p => !p.isUnique || !activePresetIds.includes(p.id));
@@ -195,9 +246,11 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
         if (preset.scale !== undefined) {
             tokenData.texture.scaleX = preset.scale;
             tokenData.texture.scaleY = preset.scale;
-            if (tokenData.ring && tokenData.ring.subject) {
-                tokenData.ring.subject.scale = preset.scale;
-            }
+        }
+        // Ring subject scale follows the image scale unless set separately.
+        const presetRingScale = preset.ringScale ?? preset.scale;
+        if (presetRingScale !== undefined && tokenData.ring?.subject) {
+            tokenData.ring.subject.scale = presetRingScale;
         }
         
         if (tokenData.ring) {
@@ -211,6 +264,7 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
         }
     }
 
+    portraitPath = preset?.portrait || null;
     tokenData.disposition = 1;
 
 
@@ -247,6 +301,8 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     });
    if (presetId === "default") {
     const customImg = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallImg");
+    portraitPath = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallPortrait") || null;
+    const ringScaleFlag = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallRingScale");
     const useRing = necroActor.getFlag("necromancer-thrall-helper", "defaultRingEnabled");
     const imgScale = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallScale");
 
@@ -266,19 +322,21 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     if (imgScale !== undefined) {
         tokenData.texture.scaleX = imgScale;
         tokenData.texture.scaleY = imgScale;
-        if (tokenData.ring && tokenData.ring.subject) {
-            tokenData.ring.subject.scale = imgScale;
-        }
+    }
+    const defaultRingScale = ringScaleFlag ?? imgScale;
+    if (defaultRingScale !== undefined && tokenData.ring?.subject) {
+        tokenData.ring.subject.scale = defaultRingScale;
     }
 }
 // --- WILDCARD IMAGES: resolve `thrall-*.webp` to one concrete file per spawn ---
 const wildcardSrc = tokenData.texture?.src;
-if (isWildcardPath(wildcardSrc)) {
-    const resolved = await resolveImagePath(wildcardSrc);
-    tokenData.texture.src = resolved;
-    if (tokenData.ring?.subject?.texture === wildcardSrc) {
-        tokenData.ring.subject.texture = resolved;
-    }
+const pair = await resolveImagePair(wildcardSrc, portraitPath);
+tokenData.texture.src = pair.art;
+if (tokenData.ring?.subject?.texture === wildcardSrc) {
+    tokenData.ring.subject.texture = pair.art;
+}
+if (pair.portrait) {
+    foundry.utils.setProperty(tokenData, "flags.necromancer-thrall-helper.portrait", pair.portrait);
 }
 
 // --- BONE FASCINATION: NIMBLE THRALLS ---
