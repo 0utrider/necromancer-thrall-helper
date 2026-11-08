@@ -28,6 +28,15 @@ Hooks.once("init", () => {
         type: Boolean,
         default: true
     });
+    game.settings.register("necromancer-thrall-helper", "pairWildcardFiles", {
+        name: "Pair Wildcard Art by Filename",
+        hint: "If enabled, when a thrall's token art, portrait and ring subject are all wildcards, files that share the same text in place of the * are used together (thrall-03.webm with portrait-03.webp). If disabled, each image is picked at random on its own.",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
     game.settings.register("necromancer-thrall-helper", "allowThrallVitality", {
         name: "Allow Vitality Thrall Strikes",
         hint: "If enabled, a necromancer with the spirit Grim Fascination (Thrall Enhancement) and Mastery of Life and Death can set thrall Strikes to deal vitality damage. Disable to hide the vitality option if your table does not allow this reading of the rules.",

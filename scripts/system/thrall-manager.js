@@ -130,7 +130,9 @@ export function artKind(path) {
 export async function resolveImageSet(art, extras = {}) {
     const resolvedArt = await resolveImagePath(art);
     const out = { art: resolvedArt, portrait: null, ringSubject: null };
-    let key = isWildcardPath(art) ? wildcardCapture(decodeURIComponent(art), resolvedArt) : null;
+    let pairing = true;
+    try { pairing = game.settings.get("necromancer-thrall-helper", "pairWildcardFiles"); } catch (err) { /* not registered */ }
+    let key = pairing && isWildcardPath(art) ? wildcardCapture(decodeURIComponent(art), resolvedArt) : null;
     for (const name of ["portrait", "ringSubject"]) {
         const path = extras[name];
         if (!path) continue;
@@ -147,7 +149,7 @@ export async function resolveImageSet(art, extras = {}) {
         }
         const picked = await resolveImagePath(path);
         out[name] = picked === FALLBACK_IMG ? null : picked;
-        if (key === null && out[name]) key = wildcardCapture(path, out[name]);
+        if (pairing && key === null && out[name]) key = wildcardCapture(path, out[name]);
     }
     return out;
 }
@@ -248,6 +250,20 @@ export function getThrallPresets(actor = null) {
     ];
 }
 
+/** The portfolio entry the necromancer marked as their default thrall, if it still exists. */
+export function getDefaultPresetId(actor) {
+    const id = actor?.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId");
+    return id && getThrallPresets(actor).some(p => p.id === id) ? id : null;
+}
+
+/** Label for the "(Default Thrall)" option in summon dialogs, naming the default entry if one is set. */
+export function defaultThrallLabel(actor) {
+    const id = getDefaultPresetId(actor);
+    const name = id ? getThrallPresets(actor).find(p => p.id === id)?.name : null;
+    const escaped = name ? String(name).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])) : "";
+    return name ? `(Default Thrall: ${escaped})` : "(Default Thrall)";
+}
+
 export async function prepareThrallPayload(necroActor, presetId = "default") {
 
     let protoActor = game.actors.find(a => a.name === "Thrall" && a.getFlag("necromancer-thrall-helper", "isBaseThrall"));
@@ -313,7 +329,12 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
             preset = availablePresets[randomIndex];
         }
     } else if (presetId === "default") {
-        preset = defaultPreset;
+        // A portfolio entry marked as the default replaces the plain thrall, unless it is unique
+        // and already on the field.
+        const defaultId = getDefaultPresetId(necroActor);
+        const defaultEntry = defaultId ? customPresets.find(p => p.id === defaultId) : null;
+        const activeIds = canvas.scene ? canvas.scene.tokens.map(t => t.flags["necromancer-thrall-helper"]?.presetId) : [];
+        preset = defaultEntry && !(defaultEntry.isUnique && activeIds.includes(defaultEntry.id)) ? defaultEntry : defaultPreset;
     } else {
         preset = customPresets.find(p => p.id === presetId) || defaultPreset;
     }
@@ -386,7 +407,7 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
             }
         }
     });
-   if (presetId === "default") {
+   if (preset.id === "default") {
     const customImg = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallImg");
     portraitPath = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallPortrait") || null;
     ringSubjectPath = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallRingSubject") || null;

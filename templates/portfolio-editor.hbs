@@ -13,7 +13,7 @@
                 <div class="portfolio-row" data-id="{{this.id}}">
                       <img src="{{this.displayImg}}" alt="{{this.name}}" class="portfolio-portrait">
                     <div class="portfolio-details">
-                        <span class="portfolio-name">{{this.name}}</span>
+                        <span class="portfolio-name">{{this.name}}{{#if this.isDefault}} <i class="fas fa-star portfolio-default-star" title="Default thrall"></i>{{/if}}</span>
                          {{#if this.isWildcard}}<span class="portfolio-wildcard-tag" title="{{this.img}}"><i class="fas fa-shuffle"></i> {{this.matchCount}} random images</span>{{/if}}
                     </div>
                     <div class="portfolio-actions">
@@ -99,6 +99,11 @@
       <div class="form-group checkbox-group">
             <label>
                 <input type="checkbox" id="new-thrall-unique" checked> Is Unique (Limit one active on field)
+            </label>
+        </div>
+        <div class="form-group checkbox-group">
+            <label title="Summoning the plain (Default Thrall) will use this profile instead">
+                <input type="checkbox" id="new-thrall-default"> Use as my default thrall
             </label>
         </div>
         <div class="form-group checkbox-group">

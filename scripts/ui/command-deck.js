@@ -1,4 +1,4 @@
-import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, artKind } from "../system/thrall-manager.js";
+import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, artKind, defaultThrallLabel } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 
@@ -1425,7 +1425,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             if (attacker.getFlag("necromancer-thrall-helper", `harvested_${targetId}`) || message.getFlag("necromancer-thrall-helper", "reactionUsed")) return ui.notifications.warn("This corpse has already been harvested.");
             const presets = typeof getThrallPresets === "function" ? getThrallPresets(attacker) : [];
             if (presets.length === 0) return ui.notifications.warn("No thrall presets found.");
-            let optionsHtml = '<option value="default">(Default Thrall)</option><option value="random">(Random Family Member)</option>';
+            let optionsHtml = `<option value="default">${defaultThrallLabel(attacker)}</option>` + '<option value="random">(Random Family Member)</option>';
             presets.forEach(p => { optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attacker.id && t.name === p.name)) ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>` : `<option value="${p.id}">${p.name}</option>`; });
             new Dialog({
                 title: "Inevitable Return",
@@ -1520,7 +1520,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             if (!attacker) return ui.notifications.warn("No Necromancer found to command the thralls!");
             const presets = typeof getThrallPresets === "function" ? getThrallPresets(attacker) : [];
             if (presets.length === 0) return ui.notifications.warn("No thrall presets found.");
-            let optionsHtml = '<option value="default">(Default Thrall)</option><option value="random">(Random Family Member)</option>';
+            let optionsHtml = `<option value="default">${defaultThrallLabel(attacker)}</option>` + '<option value="random">(Random Family Member)</option>';
             presets.forEach(p => { optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attacker.id && t.name === p.name)) ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>` : `<option value="${p.id}">${p.name}</option>`; });
             let formHtml = `<form><p>Select the identities for the <b>${count}</b> new thrall(s) spawned near <b>${targetToken ? targetToken.name : "the field"}</b>:</p>`;
             for (let i = 0; i < count; i++) formHtml += `<div class="form-group"><label>Thrall ${i + 1}:</label><div class="form-fields"><select id="gore-preset-${i}">${optionsHtml}</select></div></div>`;
@@ -1591,7 +1591,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             e.preventDefault();
             if (!game.user.isGM && !attackerToken?.isOwner) return;
             const targetToken = canvas.tokens.get($btn.attr('data-target-id')), presets = typeof getThrallPresets === "function" ? getThrallPresets(attackerActor) : [];
-            let optionsHtml = '<option value="default">(Default Thrall)</option><option value="random">(Random Family Member)</option>';
+            let optionsHtml = `<option value="default">${defaultThrallLabel(attackerActor)}</option>` + '<option value="random">(Random Family Member)</option>';
             presets.forEach(p => { optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attackerActor.id && t.name === p.name)) ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>` : `<option value="${p.id}">${p.name}</option>`; });
             new Dialog({
                 title: "Inspire Heroic Thrall", content: `<p>Your critical strike calls a spirit to the battlefield!</p><p>Select an identity to spawn adjacent to <b>${targetToken ? targetToken.name : "the target"}</b>:</p><form><div class="form-group"><select id="heroic-preset">${optionsHtml}</select></div></form>`,
@@ -4177,7 +4177,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const presets = typeof getThrallPresets === "function" ? getThrallPresets(actor) : [];
                 
                
-                let optionsHtml = '<option value="default">(Default Thrall)</option><option value="random">(Random Non-Unique Family Member)</option>';
+                let optionsHtml = `<option value="default">${defaultThrallLabel(actor)}</option>` + '<option value="random">(Random Non-Unique Family Member)</option>';
                 presets.forEach(p => {
                     if (!p.isUnique) optionsHtml += `<option value="${p.id}">${p.name}</option>`;
                 });
@@ -8178,7 +8178,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const presets = getThrallPresets(actor);
 
                 let optionsHtml = `
-                    <option value="default">(Default Thrall)</option>
+                    <option value="default">${defaultThrallLabel(actor)}</option>
                     <option value="random">(Random Family Member)</option>
                 `;
                 

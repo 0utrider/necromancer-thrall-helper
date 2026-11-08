@@ -330,6 +330,11 @@
     flex: 0 0 40px;
 }
 
+.portfolio-default-star {
+    color: #eab308;
+    font-size: 0.8em;
+}
+
 .portfolio-wildcard-tag {
     display: block;
     font-size: 0.75rem;

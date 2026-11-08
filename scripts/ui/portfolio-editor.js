@@ -37,6 +37,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
 
     async _prepareContext(options) {
         const customFamily = this.actor.getFlag("necromancer-thrall-helper", "familyTree") || [];
+        const defaultId = this.actor.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId");
         const presets = await Promise.all(customFamily.map(async (p) => {
             // The list thumbnail is an <img>, so prefer the portrait and skip animated art.
             const thumbSource = p.portrait || p.img;
@@ -45,6 +46,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
             const artMatches = isWildcardPath(p.img) ? (await listWildcardMatches(p.img)).length : 0;
             return {
                 ...p,
+                isDefault: p.id === defaultId,
                 displayImg: thumb && !isVideoPath(thumb) ? thumb : "systems/pf2e/icons/default-icons/npc.svg",
                 isWildcard: isWildcardPath(p.img) || isWildcardPath(p.portrait),
                 matchCount: artMatches || thumbMatches.length
@@ -115,6 +117,9 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 customFamily = customFamily.filter(p => p.id !== presetId);
                 
                 await this.actor.setFlag("necromancer-thrall-helper", "familyTree", customFamily);
+                if (this.actor.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId") === presetId) {
+                    await this.actor.unsetFlag("necromancer-thrall-helper", "defaultFamilyEntryId");
+                }
                 if (this.editingId === presetId) this.resetForm(html);
                 this.render(true);
             });
@@ -139,6 +144,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 html.querySelector("#new-thrall-ring-subject").value = target.ringSubject || "";
                 updateAllInfo();
                 html.querySelector("#new-thrall-unique").checked = !!target.isUnique;
+                html.querySelector("#new-thrall-default").checked = this.actor.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId") === target.id;
                 html.querySelector("#new-thrall-ring").checked = target.ring !== false;
                 html.querySelector("#new-thrall-scale").value = target.scale ?? 1.0;
                 html.querySelector("#new-thrall-scale-val").textContent = target.scale ?? 1.0;
@@ -349,6 +355,8 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 }
 
                 let customFamily = this.actor.getFlag("necromancer-thrall-helper", "familyTree") || [];
+                const makeDefault = html.querySelector("#new-thrall-default").checked;
+                let savedId = this.editingId;
 
                 if (this.editingId) {
                     customFamily = customFamily.map(p => {
@@ -370,6 +378,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                         return;
                     }
 
+                    savedId = newId;
                     customFamily.push({
                         id: newId,
                         name: name,
@@ -380,6 +389,13 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
                 }
 
                 await this.actor.setFlag("necromancer-thrall-helper", "familyTree", customFamily);
+                // Checking the box makes this entry the default thrall; unchecking it on the current default clears it.
+                const currentDefault = this.actor.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId");
+                if (makeDefault) {
+                    await this.actor.setFlag("necromancer-thrall-helper", "defaultFamilyEntryId", savedId);
+                } else if (currentDefault === savedId) {
+                    await this.actor.unsetFlag("necromancer-thrall-helper", "defaultFamilyEntryId");
+                }
                 this.resetForm(html);
                 this.render(true);
             });
@@ -390,6 +406,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         this.editingId = null;
         html.querySelector("#builder-heading").textContent = "Draft New Thrall";
         html.querySelector("#new-thrall-name").value = "";
+        html.querySelector("#new-thrall-default").checked = false;
         html.querySelector("#new-thrall-img").value = "";
         html.querySelector("#new-thrall-portrait").value = "";
         html.querySelector("#new-thrall-ring-subject").value = "";
