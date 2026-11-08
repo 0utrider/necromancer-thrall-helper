@@ -517,3 +517,22 @@
     border-color: #223355;
     background: rgba(34, 51, 85, 0.3);
 }
+
+/* Necromancer Settings dialog */
+.necro-settings .window-content { background: #1a1b20; color: #d4d4d8; }
+.necro-settings .necro-settings-form h3 { margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #3f3f46; color: #e4e4e7; font-size: 0.95rem; }
+.necro-settings .necro-settings-form h3:first-child { margin-top: 0; }
+.necro-settings .necro-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.necro-settings .necro-row label { flex: 1; }
+.necro-settings .necro-zone-controls { display: flex; align-items: center; gap: 6px; }
+.necro-settings .necro-swatch { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; padding: 0; border: 2px solid #52525b; border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.necro-settings .necro-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.necro-settings .necro-swatch::-webkit-color-swatch { border: none; border-radius: 50%; }
+.necro-settings .necro-swatch::-moz-color-swatch { border: none; border-radius: 50%; }
+.necro-settings .necro-swatch:disabled { opacity: 0.45; cursor: default; }
+.necro-settings .necro-link-btn { width: 22px; height: 22px; padding: 0; line-height: 1; border-radius: 50%; border: 1px solid #52525b; background: #27272a; color: #a1a1aa; font-size: 11px; cursor: pointer; }
+.necro-settings .necro-link-btn.linked { background: #7e22ce; border-color: #a855f7; color: #fff; }
+.necro-settings select { background: #27272a; color: #e4e4e7; border: 1px solid #52525b; }
+.necro-settings .dialog-buttons { display: flex; gap: 6px; }
+.necro-settings .dialog-button.reset { flex: 0 0 40px; }
+.necro-settings .dialog-button.save { flex: 1; }

@@ -1,15 +1,20 @@
 /**
  * Per-necromancer effect colors (actor flag `effectColors`):
- *   { usePlayer: boolean, particles, bloodPool, graveyard, thickSkin, rangeRing }  (hex strings)
- * Without the flag, nothing changes from the module's original colors. "Use player's color" means
- * the colour of the player who owns the necromancer, so a bomb the GM places still uses it.
+ *   { usePlayer, particles, bloodPool, graveyard, thickSkin, rangeRing,   (hex strings)
+ *     zoneBorder: { linked: boolean, color } }
+ * Without the flag, effects keep the module's original colors. "Effects use player color" means the
+ * colour of the player who owns the necromancer, so a bomb the GM places still uses it. Zone borders
+ * are separate: linked to the owner's colour by default, or a custom colour.
  */
 const MODULE = "necromancer-thrall-helper";
 const AER = "aoe-easy-resolve";
+const ZONE_SPELLS = ["necrotic-bomb", "necrotic-blast", "desperate-revival", "dread-mosquito-storm", "living-graveyard",
+    "zombie-horde", "flesh-tsunami", "bony-barrage", "bone-burst", "deathly-scream", "muscle-barrier", "blossoming-gore",
+    "bloody-tendrils", "thick-skin"];
 
 /** The effects a necromancer can recolor: key, label and the module's original color. */
 export const EFFECT_COLOR_KEYS = [
-    { key: "particles", label: "Spell particles (Necrotic Bomb/Blast, Desperate Revival, Dread Mosquito and other AoE Easy Resolve spells)", fallback: null },
+    { key: "particles", label: "Spell particles", fallback: null },
     { key: "bloodPool", label: "Blood Pool", fallback: "#990000" },
     { key: "graveyard", label: "Living Graveyard area", fallback: null },
     { key: "thickSkin", label: "Thick Skin emanation", fallback: "#84cc16" },
@@ -42,6 +47,13 @@ export function effectColor(actor, key, fallback) {
     if (!cfg) return fallback;
     if (cfg.usePlayer) return ownerColor(actor);
     return css(cfg[key]) ?? fallback;
+}
+
+/** Border colour of the zones (regions and templates) a necromancer creates. */
+export function zoneBorderColor(actor) {
+    const zone = settings(actor)?.zoneBorder;
+    if (zone && zone.linked === false) return css(zone.color) ?? ownerColor(actor);
+    return ownerColor(actor);
 }
 
 /** As effectColor, but as the number PIXI wants. */
@@ -78,12 +90,13 @@ export function setupEffectColorHooks() {
     Hooks.on("createItem", (item, opts, userId) => onItem(item, null, opts, userId));
     Hooks.on("updateItem", onItem);
 
-    // AER's custom colour may also tint the zone; keep the zone in the owner's player colour.
+    // Zones from the necromancer's spells use the zone border colour (the owner's player colour by
+    // default) instead of whoever placed them, whatever AoE Easy Resolve's custom colour is.
     Hooks.on("preCreateRegion", (region, data) => {
         const origin = data.flags?.pf2e?.origin;
-        if (!["necrotic-bomb", "necrotic-blast"].includes(origin?.slug) || !origin.actor) return;
+        if (!ZONE_SPELLS.includes(origin?.slug) || !origin.actor) return;
         const actor = fromUuidSync(origin.actor);
-        if (!actor || !settings(actor)) return;
-        region.updateSource({ color: ownerColor(actor) });
+        if (!actor) return;
+        region.updateSource({ color: zoneBorderColor(actor) });
     });
 }

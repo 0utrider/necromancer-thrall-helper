@@ -254,17 +254,68 @@ export function applyArtFallback(payload) {
     }
     const flags = payload.flags?.["necromancer-thrall-helper"];
     if (isArtMissing(flags?.portrait)) flags.portrait = BUNDLED_THRALL.portrait;
+    applyDeltaImage(payload);
     return payload;
 }
 
-/** Repair a freshly imported world actor whose images point at modules that aren't installed. */
+/**
+ * Give the spawned token's actor delta a still image so sheets, chat cards and the sidebar don't
+ * fall back to the base actor's art (which may be a missing module, or an animated file).
+ * Order: portrait, ring subject, still token art, bundled portrait. ActorDelta.img is image-only.
+ */
+export function applyDeltaImage(payload) {
+    const usable = p => typeof p === "string" && p && !isVideoPath(p) && !isWildcardPath(p) && !isArtMissing(p);
+    const candidates = [payload.flags?.["necromancer-thrall-helper"]?.portrait, payload.ring?.subject?.texture, payload.texture?.src];
+    payload.delta = payload.delta || {};
+    payload.delta.img = candidates.find(usable) ?? BUNDLED_THRALL.portrait;
+    return payload;
+}
+
+/** The three images of a world actor that can point at an optional art module. */
+const ACTOR_ART_FIELDS = {
+    img: { path: "img", bundled: BUNDLED_THRALL.portrait, read: a => a.img },
+    token: { path: "prototypeToken.texture.src", bundled: BUNDLED_THRALL.token, read: a => a.prototypeToken?.texture?.src },
+    subject: { path: "prototypeToken.ring.subject.texture", bundled: BUNDLED_THRALL.subject, read: a => a.prototypeToken?.ring?.subject?.texture }
+};
+
+function replaceMissingArtEnabled() {
+    try { return game.settings.get("necromancer-thrall-helper", "replaceMissingArt") !== false; } catch (err) { return true; }
+}
+
+/**
+ * Swap the art of a world thrall actor for the bundled art where it points at an inactive module,
+ * remembering the originals (flag `originalArt`) once. When the module is active again and the
+ * value is still the bundled one (so the user hasn't changed it), the original is restored.
+ * Only values pointing at an inactive module are touched; user-set art is never overwritten.
+ */
 export async function repairActorArt(actor) {
-    if (!actor) return;
+    if (!actor || !replaceMissingArtEnabled()) return;
+    const stored = actor.getFlag("necromancer-thrall-helper", "originalArt") || {};
     const updates = {};
-    if (isArtMissing(actor.img)) updates.img = BUNDLED_THRALL.portrait;
-    if (isArtMissing(actor.prototypeToken?.texture?.src)) updates["prototypeToken.texture.src"] = BUNDLED_THRALL.token;
-    if (isArtMissing(actor.prototypeToken?.ring?.subject?.texture)) updates["prototypeToken.ring.subject.texture"] = BUNDLED_THRALL.subject;
-    if (Object.keys(updates).length) await actor.update(updates);
+    const remembered = { ...stored };
+    for (const [name, field] of Object.entries(ACTOR_ART_FIELDS)) {
+        const current = field.read(actor);
+        if (isArtMissing(current)) {
+            updates[field.path] = field.bundled;
+            if (!(name in remembered)) remembered[name] = current;
+        } else if (name in remembered && current === field.bundled && !isArtMissing(remembered[name])) {
+            updates[field.path] = remembered[name];
+            delete remembered[name];
+        }
+    }
+    if (!Object.keys(updates).length) return;
+    if (Object.keys(remembered).length) updates["flags.necromancer-thrall-helper.originalArt"] = remembered;
+    else updates["flags.necromancer-thrall-helper.-=originalArt"] = null;
+    await actor.update(updates);
+}
+
+/** On ready (active GM only): repair every world actor imported from the Necromancer Thralls pack. */
+export async function repairWorldThrallArt() {
+    if (!game.user.isActiveGM || !replaceMissingArtEnabled()) return;
+    for (const actor of game.actors) {
+        const source = actor._stats?.compendiumSource ?? actor.flags?.core?.sourceId;
+        if (typeof source === "string" && source.startsWith("Compendium.necromancer-thrall-helper.")) await repairActorArt(actor);
+    }
 }
 
 const STANDARD_ADJECTIVES = [

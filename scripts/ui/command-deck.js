@@ -1,8 +1,8 @@
-import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
+import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, isVideoPath, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
 import { notify, notifyForce } from "../system/notify.js";
-import { effectColor, effectColorNum, ownerColor, syncAllParticleColors, EFFECT_COLOR_KEYS } from "../system/effect-colors.js";
+import { effectColor, effectColorNum, ownerColor, zoneBorderColor, syncAllParticleColors, EFFECT_COLOR_KEYS } from "../system/effect-colors.js";
 
 
 globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
@@ -819,6 +819,7 @@ if (hasFleshFascination) {
             x: necroToken.center.x,
             y: necroToken.center.y,
             fillColor: effectColor(masterActor, "thickSkin", "#84cc16"),
+            borderColor: zoneBorderColor(masterActor),
             flags: {
                 "necromancer-thrall-helper": { source: "thick-skin" },
                 "pf2e": { origin: { uuid: thickSkinItem.uuid } },
@@ -1231,12 +1232,41 @@ Hooks.on("necroHelperDamageApplied", async (actor, options, hpLost) => {
         }
     }
 });
+/**
+ * AoE Easy Resolve cards put the token art in an <img>, which can't show an animated file. Swap
+ * such images for the token's still image, or, if the token is gone, an inline <video>.
+ */
+function fixVideoImages($html) {
+    $html.find("img").each((_i, img) => {
+        const src = img.getAttribute("src");
+        if (!isVideoPath(src)) return;
+        const tokenId = img.closest("[data-token-id]")?.getAttribute("data-token-id");
+        const name = img.getAttribute("alt") || img.getAttribute("title");
+        const tokenDoc = (tokenId && canvas.scene?.tokens?.get(tokenId))
+            || (name && canvas.scene?.tokens?.find(t => t.name === name))
+            || null;
+        const still = tokenDoc ? tokenPortrait(tokenDoc) : null;
+        if (still && !isVideoPath(still)) {
+            img.setAttribute("src", still);
+            return;
+        }
+        const video = document.createElement("video");
+        video.src = src;
+        video.autoplay = video.muted = video.loop = video.playsInline = true;
+        video.className = img.className;
+        video.style.cssText = img.style.cssText;
+        for (const attr of ["width", "height", "title"]) if (img.hasAttribute(attr)) video.setAttribute(attr, img.getAttribute(attr));
+        img.replaceWith(video);
+    });
+}
+
 Hooks.on("renderChatMessageHTML", (message, html, data) => {
     
     const $html = html instanceof jQuery ? html : $(html);
     const aoeFlags = message.flags?.["aoe-easy-resolve"] || {};
     const itemName = aoeFlags.itemName || message.flavor || "";
     const msgContent = message.content || "";
+    if (Object.keys(aoeFlags).length || msgContent.includes("aer-") || msgContent.includes("Resolution Summary")) fixVideoImages($html);
     const reactionUsed = message.getFlag("necromancer-thrall-helper", "reactionUsed");
     const isResolution = msgContent.includes("Resolution Summary") || aoeFlags.isResolution;
 
@@ -1585,7 +1615,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             if (!drSpell) drSpell = (await necroActor.createEmbeddedDocuments("Item", [{ name: "Desperate Revival", type: "spell", img: "icons/magic/life/heart-shadow-red.webp", system: spellSys }]))[0];
             else await drSpell.update({ system: spellSys });
             window.aoeEasyResolveCache = { item: drSpell, name: "Desperate Revival", dc: spellDC, type: "fortitude", hazardDuration: null };
-            await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{ t: "circle", user: game.user.id, distance: 60 + (((necroToken.document.width || 1) * (canvas.scene?.grid?.distance || 5)) / 2), direction: 0, x: necroToken.center.x, y: necroToken.center.y, fillColor: "#7f1d1d", flags: { "necromancer-thrall-helper": { source: "desperate-revival" }, "aoe-easy-resolve": { useOverride: true, saveType: "fortitude", saveDC: spellDC, isAreaDamage: true, allyBaseEffect: "standard", enemyBaseEffect: "standard" } } }]);
+            await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{ t: "circle", user: game.user.id, distance: 60 + (((necroToken.document.width || 1) * (canvas.scene?.grid?.distance || 5)) / 2), direction: 0, x: necroToken.center.x, y: necroToken.center.y, fillColor: "#7f1d1d", borderColor: zoneBorderColor(necroActor), flags: { "necromancer-thrall-helper": { source: "desperate-revival" }, "aoe-easy-resolve": { useOverride: true, saveType: "fortitude", saveDC: spellDC, isAreaDamage: true, allyBaseEffect: "standard", enemyBaseEffect: "standard" } } }]);
             $btn.replaceWith(`<p style="margin: 0; color: #4ade80; font-weight: bold; text-align: center;"><i class="fas fa-check"></i> Desperate Revival Unleashed! (1 HP)</p>`);
         }
 
@@ -3517,7 +3547,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
 
 
-        // --- EFFECT COLORS ---
+        // --- NECROMANCER SETTINGS (zones, effect colors, notifications) ---
         const colorsBtn = html.querySelector(".effect-colors-btn");
         if (colorsBtn) {
             colorsBtn.addEventListener("click", async (e) => {
@@ -3527,52 +3557,63 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                 const saved = actor.getFlag("necromancer-thrall-helper", "effectColors") || {};
                 const playerColor = ownerColor(actor);
+                const zoneLinked = saved.zoneBorder?.linked !== false;
+                const zoneColor = saved.zoneBorder?.color || playerColor;
                 const rows = EFFECT_COLOR_KEYS.map(({ key, label, fallback }) => `
-                    <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px;">
-                        <label style="flex: 1;">${label}</label>
-                        <input type="color" class="fx-color" data-key="${key}" value="${saved[key] || fallback || playerColor}" style="flex: 0 0 50px;">
+                    <div class="necro-row">
+                        <label>${label}</label>
+                        <input type="color" class="necro-swatch fx-color" data-key="${key}" value="${saved[key] || fallback || playerColor}">
                     </div>`).join("");
                 const level = game.settings.get("necromancer-thrall-helper", "notificationLevel");
                 const levelOptions = Object.entries(game.settings.settings.get("necromancer-thrall-helper.notificationLevel").choices)
                     .map(([v, l]) => `<option value="${v}" ${v === level ? "selected" : ""}>${l}</option>`).join("");
 
                 new Dialog({
-                    title: "Effect Colors",
+                    title: "Necromancer Settings",
                     content: `
-                        <form autocomplete="off" style="margin-bottom: 10px;">
-                            <p>Colors for the effects ${foundry.utils.escapeHTML(actor.name)} creates.</p>
-                            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
-                                <label title="Use the color of the player who owns this necromancer, even when the GM places the effect.">Use player's color (<span style="color: ${playerColor};">&#9632;</span>):</label>
+                        <form autocomplete="off" class="necro-settings-form">
+                            <h3>Zones</h3>
+                            <div class="necro-row">
+                                <label>Zone borders</label>
+                                <span class="necro-zone-controls">
+                                    <button type="button" id="fx-zone-link" class="necro-link-btn ${zoneLinked ? "linked" : ""}"><i class="fas fa-user"></i></button>
+                                    <input type="color" id="fx-zone-color" class="necro-swatch" value="${zoneLinked ? playerColor : zoneColor}" ${zoneLinked ? "disabled" : ""}>
+                                </span>
+                            </div>
+                            <h3>Effect Colors</h3>
+                            <div class="necro-row">
+                                <label title="Use the color of the player who owns this necromancer, even when the GM places the effect.">Effects use player color <span style="color: ${playerColor};">&#9679;</span></label>
                                 <input type="checkbox" id="fx-use-player" ${saved.usePlayer ? "checked" : ""}>
                             </div>
                             ${rows}
-                            <hr style="border-color: #555;">
-                            <div class="form-group" style="display: flex; justify-content: space-between; align-items: center;">
-                                <label title="Applies to you only, on this device.">Pop-up messages:</label>
+                            <h3>Notifications</h3>
+                            <div class="necro-row">
+                                <label title="Applies to you only, on this device.">Pop-ups</label>
                                 <select id="fx-notify-level">${levelOptions}</select>
                             </div>
                         </form>`,
                     render: (dialogHtml) => {
-                        const sync = () => dialogHtml.find(".fx-color").prop("disabled", dialogHtml.find("#fx-use-player").is(":checked"));
-                        dialogHtml.find("#fx-use-player").on("change", sync);
-                        sync();
+                        const app = dialogHtml.closest(".app, .window-app");
+                        app.find(".window-title").prepend('<i class="fas fa-cog" style="margin-right: 6px;"></i>');
+                        const linkBtn = dialogHtml.find("#fx-zone-link");
+                        const zoneInput = dialogHtml.find("#fx-zone-color");
+                        const syncZone = () => {
+                            const linked = linkBtn.hasClass("linked");
+                            zoneInput.prop("disabled", linked);
+                            if (linked) zoneInput.val(playerColor);
+                            linkBtn.attr("title", linked ? "Linked to player color (click to customize)" : "Custom (click to link to player color)");
+                        };
+                        linkBtn.on("click", (evt) => { evt.preventDefault(); linkBtn.toggleClass("linked"); if (!linkBtn.hasClass("linked")) zoneInput.val(zoneColor); syncZone(); });
+                        syncZone();
+                        // "Effects use player color" dims only the effect rows, never the zone row.
+                        const syncEffects = () => dialogHtml.find(".fx-color").prop("disabled", dialogHtml.find("#fx-use-player").is(":checked"));
+                        dialogHtml.find("#fx-use-player").on("change", syncEffects);
+                        syncEffects();
                     },
                     buttons: {
-                        save: {
-                            icon: '<i class="fas fa-save"></i>',
-                            label: "Save",
-                            callback: async (dialogHtml) => {
-                                const cfg = { usePlayer: dialogHtml.find("#fx-use-player").is(":checked") };
-                                dialogHtml.find(".fx-color").each((_i, el) => { cfg[el.dataset.key] = el.value; });
-                                await actor.setFlag("necromancer-thrall-helper", "effectColors", cfg);
-                                await syncAllParticleColors(actor);
-                                await game.settings.set("necromancer-thrall-helper", "notificationLevel", dialogHtml.find("#fx-notify-level").val());
-                                notify("info", "Effect colors saved.");
-                            }
-                        },
                         reset: {
                             icon: '<i class="fas fa-rotate-left"></i>',
-                            label: "Reset to defaults",
+                            label: "",
                             callback: async () => {
                                 await actor.unsetFlag("necromancer-thrall-helper", "effectColors");
                                 // Hand particle colors back to AoE Easy Resolve (the placing player's color).
@@ -3581,13 +3622,28 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         await item.update({ "flags.aoe-easy-resolve.useCustomColor": false });
                                     }
                                 }
-                                notify("info", "Effect colors reset.");
+                                notify("info", "Settings reset to defaults.");
                             }
                         },
-                        cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
+                        save: {
+                            icon: '<i class="fas fa-save"></i>',
+                            label: "Save",
+                            callback: async (dialogHtml) => {
+                                const linked = dialogHtml.find("#fx-zone-link").hasClass("linked");
+                                const cfg = {
+                                    usePlayer: dialogHtml.find("#fx-use-player").is(":checked"),
+                                    zoneBorder: { linked, color: linked ? zoneColor : dialogHtml.find("#fx-zone-color").val() }
+                                };
+                                dialogHtml.find(".fx-color").each((_i, el) => { cfg[el.dataset.key] = el.value; });
+                                await actor.setFlag("necromancer-thrall-helper", "effectColors", cfg);
+                                await syncAllParticleColors(actor);
+                                await game.settings.set("necromancer-thrall-helper", "notificationLevel", dialogHtml.find("#fx-notify-level").val());
+                                notify("info", "Settings saved.");
+                            }
+                        }
                     },
                     default: "save"
-                }).render(true);
+                }, { classes: ["dialog", "necro-settings"], width: 400 }).render(true);
             });
         }
 
@@ -4185,7 +4241,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             const [templateDoc] = await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{
                                 t: "circle", user: game.user.id,
                                 x: snapped.x + (gridSize * 2), y: snapped.y + (gridSize * 2),
-                                distance: 20, fillColor: effectColor(actor, "graveyard", game.user.color?.css ?? game.user.color ?? "#4b5563"), fillAlpha: 0.15,
+                                distance: 20, fillColor: effectColor(actor, "graveyard", game.user.color?.css ?? game.user.color ?? "#4b5563"), borderColor: zoneBorderColor(actor), fillAlpha: 0.15,
                                 flags: {} 
                             }]);
     

@@ -1,5 +1,5 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
-import { setupHooks } from "./system/thrall-manager.js";
+import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
 import { setupEffectColorHooks } from "./system/effect-colors.js";
 import { notify, notifyForce } from "./system/notify.js";
@@ -39,6 +39,15 @@ Hooks.once("init", () => {
         default: true
     });
 
+    game.settings.register("necromancer-thrall-helper", "replaceMissingArt", {
+        name: "Replace missing thrall art with bundled art",
+        hint: "If a thrall actor's images point at a token pack that isn't active, use the module's bundled art instead. The original paths are remembered and restored when the pack is active again.",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: true
+    });
+
     game.settings.register("necromancer-thrall-helper", "allowThrallVitality", {
         name: "Allow Vitality Thrall Strikes",
         hint: "If enabled, a necromancer with the spirit Grim Fascination (Thrall Enhancement) and Mastery of Life and Death can set thrall Strikes to deal vitality damage. Disable to hide the vitality option if your table does not allow this reading of the rules.",
@@ -55,10 +64,10 @@ Hooks.once("init", () => {
         config: true,
         type: String,
         choices: {
-            all: "All messages",
-            important: "Warnings and errors (default)",
+            all: "All",
+            important: "Warnings & errors",
             errors: "Errors only",
-            none: "None"
+            none: "Off"
         },
         default: "important"
     });
@@ -68,6 +77,7 @@ Hooks.once("ready", () => {
     console.log("Necromancer Thrall Helper | Binding hooks.");
     setupHooks();
     setupEffectColorHooks();
+    repairWorldThrallArt().catch(err => console.warn("Necromancer Thrall Helper | Could not repair thrall art:", err));
 });
 
 Hooks.on("getSceneControlButtons", (controls) => {
