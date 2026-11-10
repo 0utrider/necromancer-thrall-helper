@@ -12,7 +12,7 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
     static DEFAULT_OPTIONS = {
         id: "thrall-portfolio-editor",
-        classes: ["necro-dark", "necro-portfolio"],
+        classes: ["necro-thrall", "necro-dark", "necro-portfolio"],
         tag: "form",
         position: {
             width: 450,

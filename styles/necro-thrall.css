@@ -20,14 +20,14 @@
     border: none;
 }
 
-.map-tracker {
+:where(.necro-thrall) .map-tracker {
     display: flex;
     align-items: center;
     gap: 6px;
     font-weight: bold;
 }
 
-.map-tracker .map-pip {
+:where(.necro-thrall) .map-tracker .map-pip {
     width: 32px;
     height: 32px;
     padding: 0;
@@ -39,14 +39,14 @@
     font-weight: bold;
 }
 
-.map-tracker .map-pip.active {
+:where(.necro-thrall) .map-tracker .map-pip.active {
     background: var(--color-border-highlight);
     color: white;
     box-shadow: 0 0 5px var(--color-shadow-primary);
 }
 
 /* New Layout Styles */
-.active-thralls-list {
+:where(.necro-thrall) .active-thralls-list {
     flex-grow: 1;
     overflow-y: auto;
     padding: 8px 0;
@@ -55,7 +55,7 @@
     margin-bottom: 12px;
 }
 
-.empty-state {
+:where(.necro-thrall) .empty-state {
     text-align: center;
     color: var(--color-text-dark-inactive);
     font-style: italic;
@@ -73,10 +73,10 @@
     font-weight: bold;
     padding: 6px;
 }
-.header-info { display: flex; flex-direction: column; }
-.header-info .subtext { font-size: 0.8rem; color: var(--color-text-dark-inactive); }
+:where(.necro-thrall) .header-info { display: flex; flex-direction: column; }
+:where(.necro-thrall) .header-info .subtext { font-size: 0.8rem; color: var(--color-text-dark-inactive); }
 /* Thrall Roster Rows */
-.thrall-row {
+:where(.necro-thrall) .thrall-row {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -87,18 +87,18 @@
     margin-bottom: 8px;
 }
 /* Active Row Highlight Synchronization */
-.thrall-row {
+:where(.necro-thrall) .thrall-row {
     transition: all 0.2s ease;
 }
 
-.thrall-row:hover,
-.thrall-row.highlight {
+:where(.necro-thrall) .thrall-row:hover,
+:where(.necro-thrall) .thrall-row.highlight {
     background: rgba(255, 255, 255, 0.1);
     border-color: var(--color-border-highlight);
     box-shadow: 0 0 5px var(--color-shadow-primary);
 }
 
-.thrall-portrait {
+:where(.necro-thrall) .thrall-portrait {
     width: 40px;
     height: 40px;
     border-radius: 4px;
@@ -107,24 +107,24 @@
     background: rgba(0,0,0,0.5);
 }
 
-.thrall-details {
+:where(.necro-thrall) .thrall-details {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
     gap: 4px;
 }
 
-.thrall-name {
+:where(.necro-thrall) .thrall-name {
     font-weight: bold;
     font-size: 1rem;
     color: var(--color-text-light-highlight);
 }
 
-.thrall-stance {
+:where(.necro-thrall) .thrall-stance {
     width: 100%;
 }
 
-.stance-dropdown {
+:where(.necro-thrall) .stance-dropdown {
     width: 100%;
     background: rgba(0, 0, 0, 0.4);
     color: var(--color-text-light-highlight);
@@ -135,17 +135,17 @@
     font-size: 0.8rem;
 }
 
-.stance-dropdown option {
+:where(.necro-thrall) .stance-dropdown option {
     background: #1a1c23; /* Dark Foundry background */
     color: #f0f0e0;
 }
 
-.thrall-actions {
+:where(.necro-thrall) .thrall-actions {
     display: flex;
     gap: 4px;
 }
 
-.thrall-actions .action-btn {
+:where(.necro-thrall) .thrall-actions .action-btn {
     width: 32px;
     height: 32px;
     padding: 0;
@@ -154,7 +154,7 @@
     align-items: center;
 }
 
-.thrall-actions .kill-btn {
+:where(.necro-thrall) .thrall-actions .kill-btn {
     color: #ff6b6b;
 }
 /* Footer & Preset Dropdown */
@@ -164,7 +164,7 @@
     gap: 8px;
 }
 
-.preset-selector select {
+:where(.necro-thrall) .preset-selector select {
     width: 100%;
     background: rgba(0, 0, 0, 0.4);
     color: var(--color-text-light-highlight);
@@ -174,13 +174,13 @@
     font-family: var(--font-primary);
 }
 
-.spawn-buttons {
+:where(.necro-thrall) .spawn-buttons {
     display: flex;
     gap: 10px;
     justify-content: space-between;
 }
 
-.spawn-buttons button {
+:where(.necro-thrall) .spawn-buttons button {
     flex: 1;
     font-weight: bold;
     padding: 6px;
@@ -236,11 +236,11 @@
     box-shadow: 0 0 5px var(--color-shadow-primary);
 }
 /* Roster Administrative Controls */
-.roster-controls {
+:where(.necro-thrall) .roster-controls {
     margin-bottom: 10px;
 }
 
-.edit-family-btn {
+:where(.necro-thrall) .edit-family-btn {
     width: 100%;
     padding: 8px;
     background: rgba(0, 0, 0, 0.4);
@@ -258,7 +258,7 @@
     gap: 8px;
 }
 
-.edit-family-btn:hover {
+:where(.necro-thrall) .edit-family-btn:hover {
     background: rgba(0, 0, 0, 0.8);
     color: #f0f0e0;
     box-shadow: 0 0 5px var(--color-shadow-primary);
@@ -271,7 +271,7 @@
     gap: 15px;
 }
 
-.portfolio-row {
+:where(.necro-thrall) .portfolio-row {
     display: flex;
     align-items: center;
     gap: 10px;
@@ -282,7 +282,7 @@
     margin-bottom: 8px;
 }
 
-.portfolio-portrait {
+:where(.necro-thrall) .portfolio-portrait {
     width: 40px;
     height: 40px;
     border-radius: 4px;
@@ -291,29 +291,29 @@
     background-color: rgba(0, 0, 0, 0.5); /* Frames transparent/irregular images */
 }
 
-.portfolio-details {
+:where(.necro-thrall) .portfolio-details {
     flex-grow: 1;
     display: flex;
     flex-direction: column;
 }
 
-.portfolio-name {
+:where(.necro-thrall) .portfolio-name {
     font-weight: bold;
     color: var(--color-text-light-highlight);
 }
 
-.portfolio-type {
+:where(.necro-thrall) .portfolio-type {
     font-size: 0.8rem;
     color: #a0a0a0;
 }
 
-.portfolio-builder h3 {
+:where(.necro-thrall) .portfolio-builder h3 {
     margin-bottom: 10px;
     border-bottom: 1px solid var(--color-border-dark);
     padding-bottom: 5px;
 }
 
-.portfolio-builder input[type="text"] {
+:where(.necro-thrall) .portfolio-builder input[type="text"] {
     width: 100%;
     background: rgba(0, 0, 0, 0.4);
     color: var(--color-text-light-highlight);
@@ -321,51 +321,50 @@
     padding: 6px;
 }
 
-.flexrow {
-    display: flex;
+:where(.necro-thrall) .flexrow {
     gap: 10px;
 }
-.file-picker-btn,
-.wildcard-btn {
+:where(.necro-thrall) .file-picker-btn,
+:where(.necro-thrall) .wildcard-btn {
     flex: 0 0 40px;
 }
 
-.portfolio-default-star {
+:where(.necro-thrall) .portfolio-default-star {
     color: #eab308;
     font-size: 0.8em;
 }
 
-.portfolio-wildcard-tag {
+:where(.necro-thrall) .portfolio-wildcard-tag {
     display: block;
     font-size: 0.75rem;
     color: #9ca3af;
 }
 
-.field-label small {
+:where(.necro-thrall) .field-label small {
     color: #9ca3af;
     font-weight: normal;
 }
 
-#wildcard-info,
-#portrait-info,
-#subject-info {
+:where(.necro-thrall) #wildcard-info,
+:where(.necro-thrall) #portrait-info,
+:where(.necro-thrall) #subject-info {
     display: block;
     min-height: 1em;
     color: #9ca3af;
 }
 
-.file-picker-btn {
+:where(.necro-thrall) .file-picker-btn {
     flex: 0 0 40px;
 }
 
-.checkbox-group label {
+:where(.necro-thrall) .checkbox-group label {
     display: flex;
     align-items: center;
     gap: 8px;
     color: var(--color-text-light-highlight);
 }
 
-.add-thrall-btn {
+:where(.necro-thrall) .add-thrall-btn {
     width: 100%;
     margin-top: 10px;
     background: rgba(0, 0, 0, 0.4);
@@ -375,32 +374,32 @@
     padding: 8px;
 }
 
-.add-thrall-btn:hover {
+:where(.necro-thrall) .add-thrall-btn:hover {
     background: rgba(0, 0, 0, 0.8);
     box-shadow: 0 0 5px var(--color-shadow-primary);
 }
 /* Portfolio Adjective Grid Styles */
-.adjective-section {
+:where(.necro-thrall) .adjective-section {
     background: rgba(0, 0, 0, 0.2);
     border: 1px solid var(--color-border-dark);
     border-radius: 4px;
     padding: 8px;
 }
 
-.adjective-header {
+:where(.necro-thrall) .adjective-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 6px;
 }
 
-.adjective-header label {
+:where(.necro-thrall) .adjective-header label {
     font-weight: bold;
     color: var(--color-text-light-highlight);
     font-size: 0.9rem;
 }
 
-.sub-btn {
+:where(.necro-thrall) .sub-btn {
     background: rgba(0, 0, 0, 0.4);
     border: 1px solid var(--color-border-dark);
     color: var(--color-text-light-highlight);
@@ -410,12 +409,12 @@
     cursor: pointer;
 }
 
-.sub-btn:hover {
+:where(.necro-thrall) .sub-btn:hover {
     background: rgba(0, 0, 0, 0.8);
     color: white;
 }
 
-.adjective-checkbox-grid {
+:where(.necro-thrall) .adjective-checkbox-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 6px;
@@ -424,7 +423,7 @@
     padding-right: 4px;
 }
 
-.adjective-checkbox-grid label {
+:where(.necro-thrall) .adjective-checkbox-grid label {
     display: flex;
     align-items: center;
     gap: 6px;
@@ -433,7 +432,7 @@
     cursor: pointer;
 }
 
-.adjective-checkbox-grid input[type="checkbox"] {
+:where(.necro-thrall) .adjective-checkbox-grid input[type="checkbox"] {
     cursor: pointer;
 }
 /* Layout & Scroll Locking */
@@ -459,14 +458,14 @@
     flex: 0 0 auto; 
 }
 
-.active-thralls-list {
+:where(.necro-thrall) .active-thralls-list {
     flex: 1 1 auto; 
     overflow-y: auto; 
     margin-bottom: 10px; 
     padding-right: 5px; 
 }
 /* Tactical Proximity Tracker */
-.thrall-info {
+:where(.necro-thrall) .thrall-info {
     display: flex;
     flex-direction: column;
     flex-grow: 1;
@@ -474,18 +473,18 @@
 }
 
 /* Tactical Proximity Tracker */
-.proximity-tracker {
+:where(.necro-thrall) .proximity-tracker {
     display: flex;
     gap: 10px;
     font-size: 0.95rem; /* Bumped up for readability */
     margin-bottom: 4px;
 }
-.thrall-actions-row {
+:where(.necro-thrall) .thrall-actions-row {
     display: flex;
     gap: 8px;
     margin-top: 6px;
 }
-.wide-btn {
+:where(.necro-thrall) .wide-btn {
     flex: 1;
     padding: 4px 8px;
     display: flex;
@@ -495,7 +494,7 @@
     font-size: 0.85em;
 }
 
-.prox-badge {
+:where(.necro-thrall) .prox-badge {
     background: rgba(0, 0, 0, 0.4);
     padding: 4px 8px; /* Thicker padding */
     border-radius: 4px;
@@ -506,13 +505,13 @@
     border: 1px solid;
 }
 
-.prox-badge.enemy {
+:where(.necro-thrall) .prox-badge.enemy {
     color: #ff6b6b;
     border-color: #552222;
     background: rgba(85, 34, 34, 0.3);
 }
 
-.prox-badge.friendly {
+:where(.necro-thrall) .prox-badge.friendly {
     color: #4dabf7;
     border-color: #223355;
     background: rgba(34, 51, 85, 0.3);
@@ -562,7 +561,9 @@
 .necro-look .form-group:hover { background: rgba(255,255,255,.04); }
 .necro-look .form-group > label { flex: 0 0 120px; font-size: .92em; line-height: 1.15; }
 .necro-look .form-group > label:has(+ input[type=checkbox]) { flex: 1; }
-.necro-look input[type=text], .necro-look input[type=number], .necro-look select { background: #27272a; color: #e4e4e7; border: 1px solid #444; border-radius: 4px; color-scheme: dark; height: 26px; }
+.necro-look input[type=text],
+.necro-look input[type=number],
+.necro-look select { background: #27272a; color: #e4e4e7; border: 1px solid #444; border-radius: 4px; color-scheme: dark; height: 26px; }
 .necro-look input[type=text] { flex: 1; min-width: 0; font-size: .85em; }
 .necro-look select { flex: 1; }
 .necro-look select option { background: #27272a; color: #e4e4e7; }
@@ -594,8 +595,11 @@
 .necro-dark input[type=range]::-moz-range-thumb { background: #7c3aed; border-color: #a78bfa; }
 .necro-dark input[type=range]:disabled { opacity: .4; }
 .necro-dark ::placeholder { color: #71717a; }
-.necro-dark input[type=text], .necro-dark input[type=number], .necro-dark select { background: #27272a; color: #e4e4e7; border: 1px solid #444; border-radius: 4px; color-scheme: dark; height: 26px; }
-.necro-dark .necro-section, .necro-settings .necro-settings-form h3 {
+.necro-dark input[type=text],
+.necro-dark input[type=number],
+.necro-dark select { background: #27272a; color: #e4e4e7; border: 1px solid #444; border-radius: 4px; color-scheme: dark; height: 26px; }
+.necro-dark .necro-section,
+.necro-settings .necro-settings-form h3 {
     display: flex; justify-content: space-between; align-items: center; gap: 8px;
     margin: 0 0 8px; padding: 0 0 4px; border: 0; border-bottom: 1px solid #333;
     font: 600 .8em var(--font-primary, Signika, sans-serif); text-transform: uppercase; letter-spacing: .08em; color: #a78bfa;
@@ -614,14 +618,21 @@
 .necro-portfolio .field-label { display: block; margin: 6px 0 2px; font-size: .9em; color: #ccc; }
 .necro-portfolio .help-icon { margin-left: 4px; font-size: .85em; opacity: .45; cursor: help; }
 .necro-portfolio .flexrow { gap: 6px; }
-.necro-portfolio .file-picker-btn, .necro-portfolio .wildcard-btn, .necro-portfolio .action-btn {
+.necro-portfolio .file-picker-btn,
+.necro-portfolio .wildcard-btn,
+.necro-portfolio .action-btn {
     flex: 0 0 28px; width: 28px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center;
     background: rgba(0,0,0,.5); border: 1px solid #555; color: #ddd;
 }
-.necro-portfolio .file-picker-btn i, .necro-portfolio .wildcard-btn i, .necro-portfolio .action-btn i { margin: 0; }
+.necro-portfolio .file-picker-btn i,
+.necro-portfolio .wildcard-btn i,
+.necro-portfolio .action-btn i { margin: 0; }
 .necro-portfolio .sub-btn { background: rgba(0,0,0,.5); border: 1px solid #555; color: #ddd; border-radius: 4px; height: 26px; padding: 0 8px; }
 .necro-portfolio .sub-btn i { margin-right: 4px; }
-.necro-portfolio .sub-btn:hover, .necro-portfolio .action-btn:hover, .necro-portfolio .file-picker-btn:hover, .necro-portfolio .wildcard-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+.necro-portfolio .sub-btn:hover,
+.necro-portfolio .action-btn:hover,
+.necro-portfolio .file-picker-btn:hover,
+.necro-portfolio .wildcard-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
 .necro-portfolio .add-thrall-btn { width: 100%; height: 32px; margin-top: 4px; background: #4c1d95; border: 1px solid #7c3aed; color: #fff; }
 .necro-portfolio .add-thrall-btn:hover { background: #4c1d95; filter: brightness(1.2); box-shadow: none; }
 .necro-portfolio .adjective-section { background: rgba(0,0,0,.2); border: 1px solid #333; }
