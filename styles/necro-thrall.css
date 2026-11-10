@@ -330,13 +330,25 @@
     flex: 0 0 40px;
 }
 
+.portfolio-default-star {
+    color: #eab308;
+    font-size: 0.8em;
+}
+
 .portfolio-wildcard-tag {
     display: block;
     font-size: 0.75rem;
     color: #9ca3af;
 }
 
-#wildcard-info {
+.field-label small {
+    color: #9ca3af;
+    font-weight: normal;
+}
+
+#wildcard-info,
+#portrait-info,
+#subject-info {
     display: block;
     min-height: 1em;
     color: #9ca3af;
@@ -505,3 +517,121 @@
     border-color: #223355;
     background: rgba(34, 51, 85, 0.3);
 }
+
+/* Necromancer Settings dialog */
+.necro-settings .window-content { background: #1a1b20; color: #d4d4d8; }
+.necro-settings .necro-settings-form h3 { margin: 12px 0 6px; padding-bottom: 3px; border-bottom: 1px solid #3f3f46; color: #e4e4e7; font-size: 0.95rem; }
+.necro-settings .necro-settings-form h3:first-child { margin-top: 0; }
+.necro-settings .necro-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px; }
+.necro-settings .necro-row label { flex: 1; }
+.necro-settings .necro-zone-controls { display: flex; align-items: center; gap: 6px; }
+.necro-settings .necro-swatch { appearance: none; -webkit-appearance: none; width: 24px; height: 24px; padding: 0; border: 2px solid #52525b; border-radius: 50%; background: none; cursor: pointer; overflow: hidden; }
+.necro-settings .necro-swatch::-webkit-color-swatch-wrapper { padding: 0; }
+.necro-settings .necro-swatch::-webkit-color-swatch { border: none; border-radius: 50%; }
+.necro-settings .necro-swatch::-moz-color-swatch { border: none; border-radius: 50%; }
+.necro-settings .necro-swatch:disabled { opacity: 0.45; cursor: default; }
+.necro-settings .necro-link-btn { width: 22px; height: 22px; padding: 0; line-height: 1; border-radius: 50%; border: 1px solid #52525b; background: #27272a; color: #a1a1aa; font-size: 11px; cursor: pointer; }
+.necro-settings .necro-link-btn.linked { background: #7e22ce; border-color: #a855f7; color: #fff; }
+.necro-settings select { background: #27272a; color: #e4e4e7; border: 1px solid #52525b; }
+.necro-settings .dialog-buttons { display: flex; gap: 6px; }
+.necro-settings .dialog-button.reset { flex: 0 0 40px; }
+.necro-settings .dialog-button.save { flex: 1; }
+
+/* Necromancer Settings: dark controls, centered icon and checkbox */
+.necro-settings select { color-scheme: dark; background: #27272a; color: #e4e4e7; }
+.necro-settings select option { background: #27272a; color: #e4e4e7; }
+.necro-settings select option:checked { background: #4c1d95; color: #fff; }
+.necro-settings .dialog-buttons button { color: #e4e4e7; background: rgba(0,0,0,.5); border: 1px solid #555; }
+.necro-settings .dialog-buttons button.save { background: #4c1d95; border-color: #7c3aed; }
+.necro-settings .dialog-buttons button:hover { filter: brightness(1.2); }
+.necro-settings .necro-link-btn { display: flex; align-items: center; justify-content: center; padding: 0; line-height: 1; }
+.necro-settings .necro-link-btn i { margin: 0; width: auto; }
+.necro-settings #fx-use-player { margin: 0 2px; flex: 0 0 20px; }
+.necro-settings .necro-chip { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid #888; vertical-align: middle; }
+
+/* Shared dark theme for the module's dialogs */
+.necro-dark .window-content { background: #1b1b22; color: #ddd; }
+.necro-dark .window-header { background: #121218; }
+.necro-dark input[type=checkbox] { accent-color: #7c3aed; }
+.necro-dark hr { border: 0; border-top: 1px solid #333; margin: 10px 0; }
+
+/* Default Thrall Look */
+.necro-look .window-content { padding: 10px 12px; }
+.necro-look form > p { margin: 0 0 8px; opacity: .75; font-size: .95em; }
+.necro-look .form-group { display: flex; align-items: center; gap: 6px; margin: 0 0 6px; padding: 3px 4px; border-radius: 4px; }
+.necro-look .form-group:hover { background: rgba(255,255,255,.04); }
+.necro-look .form-group > label { flex: 0 0 120px; font-size: .92em; line-height: 1.15; }
+.necro-look .form-group > label:has(+ input[type=checkbox]) { flex: 1; }
+.necro-look input[type=text], .necro-look input[type=number], .necro-look select { background: #27272a; color: #e4e4e7; border: 1px solid #444; border-radius: 4px; color-scheme: dark; height: 26px; }
+.necro-look input[type=text] { flex: 1; min-width: 0; font-size: .85em; }
+.necro-look select { flex: 1; }
+.necro-look select option { background: #27272a; color: #e4e4e7; }
+.necro-look .img-picker-btn { flex: 0 0 28px; width: 28px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center; background: rgba(0,0,0,.5); color: #ddd; border: 1px solid #555; }
+.necro-look .img-picker-btn i { margin: 0; }
+.necro-look .scale-wrap { flex: 1; display: flex; align-items: center; gap: 6px; }
+.necro-look .scale-slider { flex: 1; min-width: 0; }
+.necro-look .scale-num { flex: 0 0 52px; width: 52px; text-align: center; }
+.necro-look input[type=checkbox] { margin: 0 0 0 auto; }
+.necro-look small { display: block; opacity: .6; font-size: .8em; margin: -2px 4px 8px; }
+.necro-look .summon-cfg-group > button { width: 100%; background: rgba(0,0,0,.5); color: #ddd; border: 1px solid #555; margin-top: 4px; }
+.necro-look .dialog-buttons { display: flex; gap: 6px; margin-top: 10px; }
+.necro-look .dialog-buttons button { color: #e4e4e7; background: rgba(0,0,0,.5); border: 1px solid #555; height: 32px; }
+.necro-look .dialog-buttons button.save { flex: 1; background: #4c1d95; border-color: #7c3aed; }
+.necro-look .scale-slider::-webkit-slider-runnable-track { background: #333; height: 4px; border-radius: 2px; }
+.necro-look .scale-slider::-moz-range-track { background: #333; height: 4px; border-radius: 2px; }
+.necro-look .scale-slider::-webkit-slider-thumb { background: #7c3aed; border: 1px solid #a78bfa; }
+.necro-look .scale-slider::-moz-range-thumb { background: #7c3aed; border: 1px solid #a78bfa; }
+
+/* ---- Shared look: Necromancer Settings, Default Thrall Look, Thrall Portfolio ---- */
+.necro-dark {
+    --checkbox-checked-color: #7c3aed; --checkbox-checkmark-color: #fff;
+    --checkbox-background-color: #27272a; --checkbox-border-color: #555;
+}
+.necro-dark input[type=checkbox]:checked::before { color: #7c3aed; }
+.necro-dark input[type=checkbox]:checked::after { color: #fff; }
+.necro-dark input[type=range] { accent-color: #7c3aed; }
+.necro-dark input[type=range]::-webkit-slider-thumb { background: #7c3aed; border-color: #a78bfa; }
+.necro-dark input[type=range]::-moz-range-thumb { background: #7c3aed; border-color: #a78bfa; }
+.necro-dark input[type=range]:disabled { opacity: .4; }
+.necro-dark ::placeholder { color: #71717a; }
+.necro-dark input[type=text], .necro-dark input[type=number], .necro-dark select { background: #27272a; color: #e4e4e7; border: 1px solid #444; border-radius: 4px; color-scheme: dark; height: 26px; }
+.necro-dark .necro-section, .necro-settings .necro-settings-form h3 {
+    display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    margin: 0 0 8px; padding: 0 0 4px; border: 0; border-bottom: 1px solid #333;
+    font: 600 .8em var(--font-primary, Signika, sans-serif); text-transform: uppercase; letter-spacing: .08em; color: #a78bfa;
+}
+.necro-dark .necro-section i { margin-right: 4px; }
+.necro-dark .necro-section-actions { display: flex; gap: 6px; }
+
+/* Thrall Portfolio */
+.necro-portfolio .window-content { padding: 10px 12px; }
+.necro-portfolio .portfolio-wrapper { padding: 0; gap: 8px; max-height: 78vh; overflow-y: auto; padding-right: 6px; }
+.necro-portfolio .portfolio-list { max-height: 185px; overflow-y: auto; padding-right: 4px; flex-shrink: 0; }
+.necro-portfolio .portfolio-row { border-radius: 4px; padding: 4px; }
+.necro-portfolio .portfolio-row:hover { background: rgba(255,255,255,.04); }
+.necro-portfolio .portfolio-builder .form-group { margin: 0 0 8px; }
+.necro-portfolio .portfolio-builder input[type="text"] { height: 26px; padding: 0 6px; border: 1px solid #444; background: #27272a; color: #e4e4e7; }
+.necro-portfolio .field-label { display: block; margin: 6px 0 2px; font-size: .9em; color: #ccc; }
+.necro-portfolio .help-icon { margin-left: 4px; font-size: .85em; opacity: .45; cursor: help; }
+.necro-portfolio .flexrow { gap: 6px; }
+.necro-portfolio .file-picker-btn, .necro-portfolio .wildcard-btn, .necro-portfolio .action-btn {
+    flex: 0 0 28px; width: 28px; height: 26px; padding: 0; display: flex; align-items: center; justify-content: center;
+    background: rgba(0,0,0,.5); border: 1px solid #555; color: #ddd;
+}
+.necro-portfolio .file-picker-btn i, .necro-portfolio .wildcard-btn i, .necro-portfolio .action-btn i { margin: 0; }
+.necro-portfolio .sub-btn { background: rgba(0,0,0,.5); border: 1px solid #555; color: #ddd; border-radius: 4px; height: 26px; padding: 0 8px; }
+.necro-portfolio .sub-btn i { margin-right: 4px; }
+.necro-portfolio .sub-btn:hover, .necro-portfolio .action-btn:hover, .necro-portfolio .file-picker-btn:hover, .necro-portfolio .wildcard-btn:hover { background: rgba(255,255,255,.1); color: #fff; }
+.necro-portfolio .add-thrall-btn { width: 100%; height: 32px; margin-top: 4px; background: #4c1d95; border: 1px solid #7c3aed; color: #fff; }
+.necro-portfolio .add-thrall-btn:hover { background: #4c1d95; filter: brightness(1.2); box-shadow: none; }
+.necro-portfolio .adjective-section { background: rgba(0,0,0,.2); border: 1px solid #333; }
+.necro-portfolio .adjective-header { margin-bottom: 6px; }
+.necro-portfolio .adjective-checkbox-grid { scrollbar-width: thin; scrollbar-color: #444 transparent; }
+.necro-portfolio .adjective-checkbox-grid::-webkit-scrollbar { width: 6px; }
+.necro-portfolio .adjective-checkbox-grid::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+.necro-portfolio .default-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.necro-portfolio .scale-row { display: flex; align-items: center; gap: 8px; }
+.necro-portfolio .scale-row > label { flex: 0 0 130px; font-size: .92em; }
+.necro-portfolio .scale-wrap { flex: 1; display: flex; align-items: center; gap: 6px; }
+.necro-portfolio .scale-wrap input[type=range] { flex: 1; min-width: 0; }
+.necro-portfolio .scale-num { flex: 0 0 52px; width: 52px; text-align: center; }

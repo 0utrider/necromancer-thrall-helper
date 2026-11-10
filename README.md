@@ -17,3 +17,16 @@
 * Tactical GM Pings: When a player requests a spawn, the GM screen automatically pans to the target location, pings the map, and flashes a glowing tactical highlight box while awaiting confirmation.
 
   **Video of features as of 1.0.2 with more coming all the time:** https://www.youtube.com/watch?v=0kgbYnEZim8
+
+**Token art**
+* Wildcard art: any image path can be a pattern such as `path/to/art/thrall-*.webp`; one matching file is picked at random each time a thrall is summoned.
+* Animated art: token art can be a `.webm`. Dynamic token rings don't support animation, so the ring is skipped for animated art unless you also set a Ring Subject (a transparent cutout image).
+* Portraits and ring subjects: each look can have a still-image Portrait (shown in the Command Deck and chat cards) and a Ring Subject (the cutout the dynamic ring draws). If the art and these are all wildcards, files that share the same `*` text are paired, e.g. `thrall-03.webm` with `portrait-03.webp` and `subject-03.webp`.
+* Missing token packs: if a thrall or summon type points at art from a token pack that isn't installed, a bundled fallback image is used instead. The plain Thrall's look is chosen in this order: your own default art (Default Summon Config), the bundled art if "Use bundled default instead of compendium art" is checked, the compendium art if its token pack is active, and the bundled art otherwise. "Use bundled art" in Default Summon Config fills the fields in for you to tweak.
+
+**Effect colors and notifications**
+* Effect Colors (button under Default Thrall Look): choose colors for spell particles from AoE Easy Resolve (Necrotic Bomb/Blast, Desperate Revival, Dread Mosquito), the Blood Pool, the Living Graveyard area, the Thick Skin emanation and range rings, or use the color of the player who owns the necromancer. Nothing changes until you set it. The Necrotic Bomb/Blast zone stays in the owner's player color.
+* Notification Level (client setting, also in Effect Colors): choose all messages, warnings and errors (default), errors only, or none. Placement instructions and permission problems always show.
+
+**Credits**
+* The fallback image `assets/thrall.webp` (and the portrait, ring subject and token cut from it by `tools/make_thrall_subject.py`) comes from The Battle for Wesnoth (artist doofus-01, GPL v2+). Details are in [`assets/CREDITS.md`](assets/CREDITS.md).

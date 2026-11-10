@@ -1,9 +1,12 @@
+import { applyArtFallback } from "./thrall-manager.js";
+import { notify, notifyForce } from "./notify.js";
+
 let socketlibSocket = undefined;
 
 async function requestSpawn(payload, sceneId) {
     const scene = game.scenes.get(sceneId) || canvas.scene || game.scenes.active;
     if (!scene) {
-        ui.notifications.warn("No valid scene found to spawn the Thrall.");
+        notify("warn", "No valid scene found to spawn the Thrall.");
         return;
     }
 
@@ -67,6 +70,7 @@ async function requestSpawn(payload, sceneId) {
         hidden: false
     });
 
+    applyArtFallback(spawnData);
     const createdTokens = await scene.createEmbeddedDocuments("Token", [spawnData]);
     
     if (createdTokens && createdTokens.length > 0 && isViewingScene) {
@@ -127,6 +131,7 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id) {
             sort: maxSort + 100, 
             hidden: false 
         });
+        applyArtFallback(spawnData);
         const createdTokens = await scene.createEmbeddedDocuments("Token", [spawnData]);
         
         if (createdTokens && createdTokens.length > 0 && canvas.scene?.id === scene.id) {
@@ -140,7 +145,7 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id) {
         return createdTokens;
     } else {
         if (!socketlibSocket) {
-            ui.notifications.error("Socketlib connection not established.");
+            notifyForce("error", "Socketlib connection not established.");
             return;
         }
         return await socketlibSocket.executeAsGM("requestSpawn", payload, sceneId);
@@ -154,7 +159,7 @@ export async function executeDelete(tokenId, sceneId = canvas.scene?.id) {
         if (tokenDoc) await tokenDoc.delete();
     } else {
         if (!socketlibSocket) {
-            ui.notifications.error("Socketlib connection not established.");
+            notifyForce("error", "Socketlib connection not established.");
             return;
         }
         await socketlibSocket.executeAsGM("deleteTokenAsGM", tokenId, sceneId);
@@ -166,7 +171,7 @@ export async function executeHazard(regionData, drawingData, sceneId = canvas.sc
         return await createHazardAsGM(regionData, drawingData, sceneId);
     } else {
         if (!socketlibSocket) {
-            ui.notifications.error("Socketlib connection not established.");
+            notifyForce("error", "Socketlib connection not established.");
             return;
         }
         return await socketlibSocket.executeAsGM("createHazardAsGM", regionData, drawingData, sceneId);

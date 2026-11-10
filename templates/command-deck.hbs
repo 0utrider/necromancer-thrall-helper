@@ -46,6 +46,11 @@
             box-shadow: 0 2px 4px rgba(0,0,0,0.3); white-space: nowrap;
         }
         .roster-grid button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: #777; }
+        /* Top row: cog, Portfolio, Default Look on one line */
+        .roster-grid.roster-top { display: grid; grid-template-columns: 34px 1fr 1fr; gap: 6px; }
+        .roster-grid.roster-top button { white-space: nowrap; }
+        .roster-grid.roster-top .effect-colors-btn { padding: 8px 0; }
+        .roster-grid.roster-top .effect-colors-btn i { margin: 0; }
 
         /* Footer - Auto-Tiling Grid */
         .footer-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px; flex-shrink: 0; }
@@ -124,8 +129,8 @@
         .thrall-actions-stack select option { background: #1a1c23; color: #eee; font-weight: normal; }
         .thrall-btn-row { display: flex; gap: 6px; }
         .thrall-btn-row button { flex: 1; height: 32px; margin: 0 !important; padding: 0; display: flex; align-items: center; justify-content: center; cursor: pointer; border-radius: 4px; border: 1px solid; color: #fff; font-size: 1em; font-weight: bold; gap: 6px; }
-        .thrall-btn-row .execute-btn { background: #166534; border-color: #14532d; }
-        .thrall-btn-row .execute-btn:hover { background: #22c55e; border-color: #16a34a; }
+        .thrall-btn-row .execute-btn { background: #4c1d95; border-color: #7c3aed; color: #fff; }
+        .thrall-btn-row .execute-btn:hover { background: #4c1d95; border-color: #7c3aed; filter: brightness(1.2); }
         .thrall-btn-row .kill-btn { background: #7f1d1d; border-color: #450a0a; }
         .thrall-btn-row .kill-btn:hover { background: #ef4444; border-color: #dc2626; }
     </style>
@@ -155,13 +160,16 @@
         </div>
     </header>
 
-    <div class="roster-grid">
+    <div class="roster-grid roster-top">
+        <button type="button" class="effect-colors-btn" data-tooltip="Necromancer Settings" aria-label="Necromancer Settings">
+            <i class="fas fa-cog"></i>
+        </button>
         <button type="button" class="edit-portfolio-btn" title="Edit Thrall Portfolio">
             <i class="fas fa-book-dead"></i> Portfolio
         </button>
         {{#if canBrowse}}
-<button type="button" class="set-default-img-btn custom-css-class-here">
-    <i class="fas fa-image"></i> Set Default Thrall Look
+<button type="button" class="set-default-img-btn custom-css-class-here" title="Default Thrall Look">
+    <i class="fas fa-image"></i> Default Look
 </button>
 {{/if}}
         {{#if hasHallowedEarth}}

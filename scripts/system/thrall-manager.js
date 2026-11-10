@@ -1,3 +1,4 @@
+import { notify, notifyForce } from "./notify.js";
 
 export function setupHooks() {
     console.log("Necromancer Thrall Helper | Thrall management hooks standing by.");
@@ -84,7 +85,7 @@ export async function resolveImagePath(path) {
     if (!isWildcardPath(path)) return path;
     const matches = await listWildcardMatches(path);
     if (matches.length === 0) {
-        ui.notifications.warn(`No images match "${path}". Using the default thrall icon.`);
+        notify("warn", `No images match "${path}". Using the default thrall icon.`);
         return FALLBACK_IMG;
     }
     const last = lastWildcardPick.get(path);
@@ -92,6 +93,227 @@ export async function resolveImagePath(path) {
     const pick = pool[Math.floor(Math.random() * pool.length)];
     lastWildcardPick.set(path, pick);
     return pick;
+}
+
+const VIDEO_EXT = /\.(webm|mp4|m4v|ogv)$/i;
+
+/** True for video paths (including wildcard patterns such as `art/thrall-*.webm`). */
+export function isVideoPath(path) {
+    if (typeof path !== "string") return false;
+    return foundry.helpers?.media?.VideoHelper?.hasVideoExtension?.(path) ?? VIDEO_EXT.test(path);
+}
+
+function wildcardCapture(pattern, file) {
+    try {
+        const re = new RegExp("^" + pattern.split("*").map(p => p.replace(/[.+?^${}()|[\]\\]/g, "\\$&")).join("(.*)") + "$");
+        return decodeURIComponent(file).match(re)?.[1] ?? null;
+    } catch (err) {
+        return null;
+    }
+}
+
+/**
+ * Whether a configured art path can use the dynamic token ring: "video" (never), "mixed" (a
+ * wildcard whose extension isn't fixed, so it depends on the file picked) or "image".
+ */
+export function artKind(path) {
+    if (isVideoPath(path)) return "video";
+    if (isWildcardPath(path) && !/\.(webp|png|jpe?g|gif|avif|svg)$/i.test(path)) return "mixed";
+    return "image";
+}
+
+/**
+ * Resolve token art plus its optional portrait and ring subject (cutout) images. Paired files
+ * share the art's `*` text: when the art is a wildcard and the same text exists in another
+ * pattern (thrall-03.webm -> portrait-03.webp, subject-03.webp), the matching file is used;
+ * otherwise a file is picked at random (and later patterns then pair with that pick).
+ */
+export async function resolveImageSet(art, extras = {}) {
+    const resolvedArt = await resolveImagePath(art);
+    const out = { art: resolvedArt, portrait: null, ringSubject: null };
+    let pairing = true;
+    try { pairing = game.settings.get("necromancer-thrall-helper", "pairWildcardFiles"); } catch (err) { /* not registered */ }
+    let key = pairing && isWildcardPath(art) ? wildcardCapture(decodeURIComponent(art), resolvedArt) : null;
+    for (const name of ["portrait", "ringSubject"]) {
+        const path = extras[name];
+        if (!path) continue;
+        if (!isWildcardPath(path)) {
+            out[name] = path;
+            continue;
+        }
+        if (key !== null) {
+            const paired = (await listWildcardMatches(path)).find(f => wildcardCapture(path, f) === key);
+            if (paired) {
+                out[name] = paired;
+                continue;
+            }
+        }
+        const picked = await resolveImagePath(path);
+        out[name] = picked === FALLBACK_IMG ? null : picked;
+        if (pairing && key === null && out[name]) key = wildcardCapture(path, out[name]);
+    }
+    return out;
+}
+
+/**
+ * Point a token's ring at the right art. The dynamic ring draws over a transparent cutout, so
+ * an explicit ring subject wins. Without one the (still) token art is used, and video art can't
+ * be a subject, so the ring is skipped. Returns true when the ring was blocked for that reason,
+ * so a caller that applies a saved ring preference afterwards can re-assert it.
+ * `artRef` is the value the subject texture holds when it just mirrors the token art.
+ */
+export function applyRingArt(data, set, artRef) {
+    if (!data.ring?.subject) return false;
+    if (set.ringSubject) {
+        data.ring.subject.texture = set.ringSubject;
+        return false;
+    }
+    if (isVideoPath(set.art)) {
+        // Subject textures are image-only; null falls back to texture.src. Clear it explicitly,
+        // because the base Thrall prototype ships with its own subject image.
+        data.ring.enabled = false;
+        data.ring.subject.texture = null;
+        return true;
+    }
+    if (data.ring.subject.texture === artRef) data.ring.subject.texture = set.art;
+    return false;
+}
+
+/**
+ * An image that an <img> tag can show for a token: its stored portrait if it has one, else
+ * its art when that is an image, else the actor image (animated art can't go in an <img>).
+ */
+export function tokenPortrait(tokenDoc) {
+    if (!tokenDoc) return FALLBACK_IMG;
+    const portrait = tokenDoc.flags?.["necromancer-thrall-helper"]?.portrait;
+    if (portrait) return portrait;
+    const src = tokenDoc.texture?.src;
+    if (src && !isVideoPath(src)) return src;
+    const actorImg = tokenDoc.actor?.img;
+    return actorImg && !isVideoPath(actorImg) ? actorImg : FALLBACK_IMG;
+}
+
+/**
+ * Bundled open-license art (see assets/CREDITS.md), cut from assets/thrall.webp by
+ * tools/make_thrall_subject.py: a plain token for use without the ring, a ring subject whose
+ * lower half is clipped to sit inside the rim, and a portrait.
+ * subjectScale is the ring.subject.scale that centres the figure in the rim.
+ */
+const ASSET_DIR = "modules/necromancer-thrall-helper/assets/";
+export const BUNDLED_THRALL = {
+    token: ASSET_DIR + "thrall-token.webp",
+    subject: ASSET_DIR + "thrall-subject.webp",
+    portrait: ASSET_DIR + "thrall-portrait.webp",
+    subjectScale: 1
+};
+export const FALLBACK_THRALL_ART = BUNDLED_THRALL.token;
+
+/**
+ * Write the bundled look into a token payload: art, ring subject and its scale, and (unless
+ * told otherwise) the portrait flag. The image scale is left alone so PF2e's size autoscale applies.
+ * The ring is switched on only with forceRing; otherwise the payload's own setting stands.
+ */
+export function applyBundledLook(payload, { forceRing = false, portrait = true } = {}) {
+    payload.texture = payload.texture || {};
+    payload.texture.src = BUNDLED_THRALL.token;
+    payload.ring = payload.ring || {};
+    payload.ring.subject = payload.ring.subject || {};
+    payload.ring.subject.texture = BUNDLED_THRALL.subject;
+    payload.ring.subject.scale = BUNDLED_THRALL.subjectScale;
+    if (forceRing) payload.ring.enabled = true;
+    if (portrait) foundry.utils.setProperty(payload, "flags.necromancer-thrall-helper.portrait", BUNDLED_THRALL.portrait);
+    return payload;
+}
+
+/** The module id a path lives in ("modules/<id>/..."), or null for core/system/world paths. */
+function artModuleId(path) {
+    const m = /^modules\/([^/]+)\//.exec(typeof path === "string" ? path : "");
+    return m ? decodeURIComponent(m[1]) : null;
+}
+
+/** True if the path lives in another module that isn't active (e.g. a purchased token pack). */
+export function isArtMissing(path) {
+    const id = artModuleId(path);
+    return !!id && !game.modules.get(id)?.active;
+}
+
+/**
+ * Swap in the bundled thrall art for any token art from modules that aren't installed. Run on
+ * every spawn payload, so each thrall/summon type falls back individually.
+ */
+export function applyArtFallback(payload) {
+    const src = payload.texture?.src;
+    const subject = payload.ring?.subject?.texture;
+    if (isArtMissing(src)) {
+        applyBundledLook(payload, { portrait: false });
+    } else if (isArtMissing(subject)) {
+        payload.ring.subject.texture = null; // falls back to texture.src
+        if (isVideoPath(src)) payload.ring.enabled = false;
+    }
+    const flags = payload.flags?.["necromancer-thrall-helper"];
+    if (isArtMissing(flags?.portrait)) flags.portrait = BUNDLED_THRALL.portrait;
+    applyDeltaImage(payload);
+    return payload;
+}
+
+/**
+ * Give the spawned token's actor delta a still image so sheets, chat cards and the sidebar don't
+ * fall back to the base actor's art (which may be a missing module, or an animated file).
+ * Order: portrait, ring subject, still token art, bundled portrait. ActorDelta.img is image-only.
+ */
+export function applyDeltaImage(payload) {
+    const usable = p => typeof p === "string" && p && !isVideoPath(p) && !isWildcardPath(p) && !isArtMissing(p);
+    const candidates = [payload.flags?.["necromancer-thrall-helper"]?.portrait, payload.ring?.subject?.texture, payload.texture?.src];
+    payload.delta = payload.delta || {};
+    payload.delta.img = candidates.find(usable) ?? BUNDLED_THRALL.portrait;
+    return payload;
+}
+
+/** The three images of a world actor that can point at an optional art module. */
+const ACTOR_ART_FIELDS = {
+    img: { path: "img", bundled: BUNDLED_THRALL.portrait, read: a => a.img },
+    token: { path: "prototypeToken.texture.src", bundled: BUNDLED_THRALL.token, read: a => a.prototypeToken?.texture?.src },
+    subject: { path: "prototypeToken.ring.subject.texture", bundled: BUNDLED_THRALL.subject, read: a => a.prototypeToken?.ring?.subject?.texture }
+};
+
+function replaceMissingArtEnabled() {
+    try { return game.settings.get("necromancer-thrall-helper", "replaceMissingArt") !== false; } catch (err) { return true; }
+}
+
+/**
+ * Swap the art of a world thrall actor for the bundled art where it points at an inactive module,
+ * remembering the originals (flag `originalArt`) once. When the module is active again and the
+ * value is still the bundled one (so the user hasn't changed it), the original is restored.
+ * Only values pointing at an inactive module are touched; user-set art is never overwritten.
+ */
+export async function repairActorArt(actor) {
+    if (!actor || !replaceMissingArtEnabled()) return;
+    const stored = actor.getFlag("necromancer-thrall-helper", "originalArt") || {};
+    const updates = {};
+    const remembered = { ...stored };
+    for (const [name, field] of Object.entries(ACTOR_ART_FIELDS)) {
+        const current = field.read(actor);
+        if (isArtMissing(current)) {
+            updates[field.path] = field.bundled;
+            if (!(name in remembered)) remembered[name] = current;
+        } else if (name in remembered && current === field.bundled && !isArtMissing(remembered[name])) {
+            updates[field.path] = remembered[name];
+            delete remembered[name];
+        }
+    }
+    if (!Object.keys(updates).length) return;
+    if (Object.keys(remembered).length) updates["flags.necromancer-thrall-helper.originalArt"] = remembered;
+    else updates["flags.necromancer-thrall-helper.-=originalArt"] = null;
+    await actor.update(updates);
+}
+
+/** On ready (active GM only): repair every world actor imported from the Necromancer Thralls pack. */
+export async function repairWorldThrallArt() {
+    if (!game.user.isActiveGM || !replaceMissingArtEnabled()) return;
+    for (const actor of game.actors) {
+        const source = actor._stats?.compendiumSource ?? actor.flags?.core?.sourceId;
+        if (typeof source === "string" && source.startsWith("Compendium.necromancer-thrall-helper.")) await repairActorArt(actor);
+    }
 }
 
 const STANDARD_ADJECTIVES = [
@@ -114,6 +336,20 @@ export function getThrallPresets(actor = null) {
     ];
 }
 
+/** The portfolio entry the necromancer marked as their default thrall, if it still exists. */
+export function getDefaultPresetId(actor) {
+    const id = actor?.getFlag("necromancer-thrall-helper", "defaultFamilyEntryId");
+    return id && getThrallPresets(actor).some(p => p.id === id) ? id : null;
+}
+
+/** Label for the "(Default Thrall)" option in summon dialogs, naming the default entry if one is set. */
+export function defaultThrallLabel(actor) {
+    const id = getDefaultPresetId(actor);
+    const name = id ? getThrallPresets(actor).find(p => p.id === id)?.name : null;
+    const escaped = name ? String(name).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])) : "";
+    return name ? `(Default Thrall: ${escaped})` : "(Default Thrall)";
+}
+
 export async function prepareThrallPayload(necroActor, presetId = "default") {
 
     let protoActor = game.actors.find(a => a.name === "Thrall" && a.getFlag("necromancer-thrall-helper", "isBaseThrall"));
@@ -121,14 +357,14 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     if (!protoActor) {
         const pack = game.packs.get("necromancer-thrall-helper.necro-thralls");
         if (!pack) {
-            ui.notifications.error("Could not find the Necromancer Thralls compendium pack.");
+            notifyForce("error", "Could not find the Necromancer Thralls compendium pack.");
             return null;
         }
 
         const index = await pack.getIndex();
         const thrallEntry = index.find(a => a.name === "Thrall");
         if (!thrallEntry) {
-            ui.notifications.error("Could not find the 'Thrall' actor in the compendium.");
+            notify("error", "Could not find the 'Thrall' actor in the compendium.");
             return null;
         }
 
@@ -146,6 +382,7 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
             "flags.necromancer-thrall-helper.isBaseThrall": true,
             folder: folder.id
         });
+        await repairActorArt(protoActor);
         console.log("Necromancer Thrall Helper | Base Thrall safely imported into its own folder.");
     }
 
@@ -154,6 +391,8 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     
     const tokenDocument = await protoActor.getTokenDocument();
     const tokenData = tokenDocument.toObject();
+    // The compendium Thrall's own art (from an optional token pack), before any preset overrides it.
+    const compendiumLook = { src: tokenData.texture?.src, subject: tokenData.ring?.subject?.texture };
 
     const customPresets = getThrallPresets(necroActor);
     const defaultPreset = { 
@@ -165,6 +404,8 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     };
     
     let preset;
+    let portraitPath = null;
+    let ringSubjectPath = null;
     if (presetId === "random" && customPresets.length > 0) {
         const activePresetIds = canvas.scene ? canvas.scene.tokens.map(t => t.flags["necromancer-thrall-helper"]?.presetId) : [];
         const availablePresets = customPresets.filter(p => !p.isUnique || !activePresetIds.includes(p.id));
@@ -176,7 +417,12 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
             preset = availablePresets[randomIndex];
         }
     } else if (presetId === "default") {
-        preset = defaultPreset;
+        // A portfolio entry marked as the default replaces the plain thrall, unless it is unique
+        // and already on the field.
+        const defaultId = getDefaultPresetId(necroActor);
+        const defaultEntry = defaultId ? customPresets.find(p => p.id === defaultId) : null;
+        const activeIds = canvas.scene ? canvas.scene.tokens.map(t => t.flags["necromancer-thrall-helper"]?.presetId) : [];
+        preset = defaultEntry && !(defaultEntry.isUnique && activeIds.includes(defaultEntry.id)) ? defaultEntry : defaultPreset;
     } else {
         preset = customPresets.find(p => p.id === presetId) || defaultPreset;
     }
@@ -195,9 +441,11 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
         if (preset.scale !== undefined) {
             tokenData.texture.scaleX = preset.scale;
             tokenData.texture.scaleY = preset.scale;
-            if (tokenData.ring && tokenData.ring.subject) {
-                tokenData.ring.subject.scale = preset.scale;
-            }
+        }
+        // Ring subject scale follows the image scale unless set separately.
+        const presetRingScale = preset.ringScale ?? preset.scale;
+        if (presetRingScale !== undefined && tokenData.ring?.subject) {
+            tokenData.ring.subject.scale = presetRingScale;
         }
         
         if (tokenData.ring) {
@@ -211,6 +459,8 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
         }
     }
 
+    portraitPath = preset?.portrait || null;
+    ringSubjectPath = preset?.ringSubject || null;
     tokenData.disposition = 1;
 
 
@@ -245,17 +495,31 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
             }
         }
     });
-   if (presetId === "default") {
+   if (preset.id === "default") {
     const customImg = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallImg");
+    portraitPath = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallPortrait") || null;
+    ringSubjectPath = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallRingSubject") || null;
+    const ringScaleFlag = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallRingScale");
     const useRing = necroActor.getFlag("necromancer-thrall-helper", "defaultRingEnabled");
     const imgScale = necroActor.getFlag("necromancer-thrall-helper", "defaultThrallScale");
+    const useBundled = necroActor.getFlag("necromancer-thrall-helper", "useBundledDefault") === true;
 
+    // Look precedence for the plain Thrall (highest first):
+    //   1. a custom look: the user's default art (a chosen portfolio profile never reaches here)
+    //   2. the bundled art, if "use bundled default" is checked
+    //   3. the compendium Thrall's art, if its token pack is active
+    //   4. the bundled art, automatically, when that pack is not active
     if (customImg) {
         tokenData.texture.src = customImg;
         if (tokenData.ring) {
             tokenData.ring.subject = tokenData.ring.subject || {};
             tokenData.ring.subject.texture = customImg;
         }
+    } else if (useBundled || isArtMissing(compendiumLook.src)) {
+        applyBundledLook(tokenData, { forceRing: true, portrait: !portraitPath });
+    } else if (compendiumLook.src) {
+        tokenData.texture.src = compendiumLook.src;
+        if (tokenData.ring?.subject && compendiumLook.subject) tokenData.ring.subject.texture = compendiumLook.subject;
     }
 
     if (useRing !== undefined) {
@@ -266,19 +530,20 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     if (imgScale !== undefined) {
         tokenData.texture.scaleX = imgScale;
         tokenData.texture.scaleY = imgScale;
-        if (tokenData.ring && tokenData.ring.subject) {
-            tokenData.ring.subject.scale = imgScale;
-        }
+    }
+    const defaultRingScale = ringScaleFlag ?? imgScale;
+    if (defaultRingScale !== undefined && tokenData.ring?.subject) {
+        tokenData.ring.subject.scale = defaultRingScale;
     }
 }
 // --- WILDCARD IMAGES: resolve `thrall-*.webp` to one concrete file per spawn ---
 const wildcardSrc = tokenData.texture?.src;
-if (isWildcardPath(wildcardSrc)) {
-    const resolved = await resolveImagePath(wildcardSrc);
-    tokenData.texture.src = resolved;
-    if (tokenData.ring?.subject?.texture === wildcardSrc) {
-        tokenData.ring.subject.texture = resolved;
-    }
+const pair = await resolveImageSet(wildcardSrc, { portrait: portraitPath, ringSubject: ringSubjectPath });
+tokenData.texture.src = pair.art;
+// Decided on the resolved files: a wildcard can pick a webp on one spawn and a webm on the next.
+applyRingArt(tokenData, pair, wildcardSrc);
+if (pair.portrait) {
+    foundry.utils.setProperty(tokenData, "flags.necromancer-thrall-helper.portrait", pair.portrait);
 }
 
 // --- BONE FASCINATION: NIMBLE THRALLS ---
