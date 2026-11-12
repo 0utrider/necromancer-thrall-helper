@@ -1004,7 +1004,7 @@ Hooks.on("createChatMessage", async (message) => {
                     }
                 });
             }
-        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
     }
 });
 Hooks.on("createItem", async (item, options, userId) => {
@@ -1707,7 +1707,7 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                 new Dialog({
                     title: "Select Sacrifice", content: `<p>Multiple thralls detected in the blast zone. Which one is becoming armor?</p><form><div class="form-group"><label>Target:</label><select id="thrall-choice">${availableThralls.map(t => `<option value="${t.id}">${t.name}</option>`).join("")}</select></div></form>`,
                     buttons: { consume: { icon: '<i class="fas fa-shield-alt"></i>', label: "Consume", callback: d => consume(availableThralls.find(t => t.id === d[0].querySelector('#thrall-choice').value)) }, cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" } }, default: "consume"
-                }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
             }
         }
     });
@@ -2624,6 +2624,7 @@ const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2) {
     static DEFAULT_OPTIONS = {
         id: "thrall-command-deck",
+        classes: ["necro-thrall"],
         title: "Command Deck",
         tag: "form",
         position: {
@@ -3543,7 +3544,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
                     },
                     default: "save"
-                }, { classes: ["dialog", "necro-look", "necro-dark"], width: 380 }).render(true);
+                }, { classes: ["dialog", "necro-thrall", "necro-look", "necro-dark"], width: 380 }).render(true);
             });
         }
 
@@ -3646,7 +3647,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
                     },
                     default: "save"
-                }, { classes: ["dialog", "necro-settings", "necro-dark"], width: 400 }).render(true);
+                }, { classes: ["dialog", "necro-thrall", "necro-settings", "necro-dark"], width: 400 }).render(true);
             });
         }
 
@@ -5183,7 +5184,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             }
                         });
                     }
-                }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
             });
         }
 
@@ -5804,7 +5805,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "cast"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "temporary-possession": {
@@ -5942,7 +5943,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "possess"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "flesh-tsunami": {
@@ -6521,7 +6522,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "charge"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
 
                         break;
                     }
@@ -6949,7 +6950,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "spawn"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "deathly-scream": {
@@ -7126,7 +7127,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "scream"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "bone-burst": {
@@ -7268,7 +7269,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "burst"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "consume-thrall": {
@@ -7312,7 +7313,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "consume"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "dead-weight": {
@@ -7425,7 +7426,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "hurl"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "bone-spear": {
@@ -7523,7 +7524,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "fire"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "charge": {
@@ -7554,7 +7555,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 }
                             },
                             default: "charge"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "blood-infusion": {
@@ -7668,7 +7669,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "infuse"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                         
@@ -7778,7 +7779,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "explode"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
 
@@ -7891,7 +7892,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "tap"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     
@@ -8007,7 +8008,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "cast"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "bony-barrage": {
@@ -8129,7 +8130,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "fire"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                     case "song-of-the-soul": {
@@ -8312,7 +8313,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                             },
                             default: "cast"
-                        }, { classes: ["dialog", "thrall-summon-dialog"] }).render(true);
+                        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
                         break;
                     }
                 }
@@ -8543,7 +8544,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     },
                     default: "summon"
                 }, {
-                    classes: ["dialog", "thrall-summon-dialog"]
+                    classes: ["dialog", "necro-thrall", "thrall-summon-dialog"]
                 }).render(true);
             });
         });
