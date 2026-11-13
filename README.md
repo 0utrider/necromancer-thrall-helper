@@ -18,6 +18,10 @@
 
   **Video of features as of 1.0.2 with more coming all the time:** https://www.youtube.com/watch?v=0kgbYnEZim8
 
+**Permissions and player summons**
+* File browser: players need the core "Use File Browser" permission to see the file-picker buttons for thrall art. Without it they can paste a path or URL instead, and wildcard art still works. On load, the GM gets a notice listing necromancer players who lack it, with one-click options to grant it to the Player role, make a player Trusted, or hide the notice. Granting it lets those players browse the server's data folders, and Trusted Player also grants other core permissions.
+* Approval: when a player summons several thralls, they place them all (numbered markers) and the GM gets ONE approval dialog listing each spot. The GM can untick any thrall and approve the rest. Esc or right-click undoes the last placement and Enter sends early.
+
 **Token art**
 * Wildcard art: any image path can be a pattern such as `path/to/art/thrall-*.webp`; one matching file is picked at random each time a thrall is summoned.
   Wildcard art works for every player, including those without file-browser permission: the GM's client resolves the pattern when approving the summon. On older versions, give the Player role "Use File Browser" in Configure Permissions.

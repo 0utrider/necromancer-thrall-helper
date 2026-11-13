@@ -1,6 +1,6 @@
-import { prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, isVideoPath, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
+import { getFeatureChoices, getFatalMethodName, prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, isVideoPath, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
-import { executeSpawn, executeDelete, executeHazard } from "../system/socket.js";
+import { executeSpawn, createSpawnBatch, executeDelete, executeHazard } from "../system/socket.js";
 import { notify, notifyForce, placementHint } from "../system/notify.js";
 import { effectColor, effectColorNum, ownerColor, zoneBorderColor, syncAllParticleColors, EFFECT_COLOR_KEYS } from "../system/effect-colors.js";
 
@@ -528,8 +528,7 @@ const THRALL_DMG_COLORS = { spirit: '#0ea5e9', void: '#7e22ce', vitality: '#b589
 
 export function actorHasSpiritFascination(actor) {
     return actor?.items.some(i => i.slug === "spirit" || i.name === "Spirit" || i.name.includes("Spirit Fascination"))
-        || actor?.flags?.pf2e?.rulesSelections?.grimFascination === "spirit"
-        || actor?.flags?.pf2e?.rulesSelections?.widespreadFascination === "spirit"
+        || getFascinations(actor).includes("spirit")
         || false;
 }
 
@@ -543,23 +542,17 @@ export function canThrallDealVitality(actor) {
         && actorHasMasteryOfLifeAndDeath(actor);
 }
 
+/**
+ * Slugs of the necromancer's chosen Grim and Widespread Fascinations, e.g. ["spirit", "void"].
+ * Read from the granted feature items (the choice is stored on the class feature, not the actor).
+ */
 export function getFascinations(actor) {
     if (!actor) return [];
-    
-    const selections = actor.flags?.pf2e?.rulesSelections || {};
-    const fascinations = new Set();
-
-    if (selections.grimFascination) {
-        fascinations.add(selections.grimFascination.toLowerCase());
-    }
-
-    if (selections.widespreadFascination) {
-        fascinations.add(selections.widespreadFascination.toLowerCase());
-    } else if (selections["widespread-fascination"]) {
-        fascinations.add(selections["widespread-fascination"].toLowerCase());
-    }
-
-    return Array.from(fascinations);
+    const picks = [
+        ...getFeatureChoices(actor, "grim-fascination"),
+        ...getFeatureChoices(actor, "widespread-fascination")
+    ];
+    return [...new Set(picks.flatMap(p => [p.slug, p.name]).filter(Boolean).map(v => v.toLowerCase()))];
 }
 Hooks.on("hoverToken", (token, hovered) => {
     if (!token?.id) return;
@@ -1566,8 +1559,9 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                             if (preset?.isUnique) { if (selectedUnique.has(val)) return notify("error", `${preset.name} is unique and cannot be summoned multiple times.`); selectedUnique.add(val); }
                             selections.push(val);
                         }
+                        const batch = createSpawnBatch();
                         let currentSpawnIndex = 0;
-                        placementHint(`Click the canvas to sprout Thrall 1 adjacent to the field. Right-click to cancel.`);
+                        placementHint(`Click the canvas to sprout Thrall 1 adjacent to the field. Right-click or Esc undoes the last one; Enter sends early.`);
                         document.body.style.cursor = "crosshair"; canvas.app.view.style.cursor = "crosshair";
                         const ghost = new PIXI.Graphics(); ghost.beginFill(0xcc0000, 0.4); ghost.lineStyle(2, 0xff0000, 0.8); ghost.drawRect(0, 0, canvas.grid.size, canvas.grid.size); ghost.endFill(); ghost.zIndex = 1000; ghost.position.set(-1000, -1000); canvas.tokens.addChild(ghost);
                         const updateGhost = (ev) => { const pos = ev.data.getLocalPosition(canvas.app.stage); const snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos; ghost.position.set(snapped.x, snapped.y); };
@@ -1575,15 +1569,23 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
                         const cleanUp = () => { document.body.style.cursor = ""; canvas.app.view.style.cursor = ""; canvas.stage.off("pointermove", updateGhost); ghost.destroy(); };
                         const interactionHandler = async (ev) => {
                             if (ev.data.button !== 0 && ev.data.button !== 2) return canvas.stage.once("pointerdown", interactionHandler);
-                            if (ev.data.button === 2) { notify("info", "Sprouting cancelled."); return cleanUp(); }
+                            if (ev.data.button === 2) {
+                                if (batch.undo()) { currentSpawnIndex--; placementHint(`Place Thrall ${currentSpawnIndex + 1}.`); return canvas.stage.once("pointerdown", interactionHandler); }
+                                batch.cancel(); notify("info", "Sprouting cancelled."); return cleanUp();
+                            }
                             const pos = ev.data.getLocalPosition(canvas.app.stage), snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos;
                             const basePayload = await prepareThrallPayload(attacker, selections[currentSpawnIndex]);
-                            if (!basePayload) { return cleanUp(); }
-                            executeSpawn(foundry.utils.mergeObject(basePayload, { x: snapped.x, y: snapped.y, elevation: targetToken?.document?.elevation || attacker?.getActiveTokens()[0]?.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 } } })).catch(() => notify("error", "Failed to materialize the thrall."));
+                            if (!basePayload) { batch.finish(); return cleanUp(); }
+                            batch.add(foundry.utils.mergeObject(basePayload, { x: snapped.x, y: snapped.y, elevation: targetToken?.document?.elevation || attacker?.getActiveTokens()[0]?.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 } } }));
                             currentSpawnIndex++;
                             if (currentSpawnIndex < count) { placementHint(`Place Thrall ${currentSpawnIndex + 1}.`); canvas.stage.once("pointerdown", interactionHandler); }
-                            else { cleanUp(); $btn.remove(); notify("info", "All blood thralls sprouted."); }
+                            else { cleanUp(); batch.finish(); $btn.remove(); notify("info", "All blood thralls sprouted."); }
                         };
+                        batch.bindKeys({
+                            onUndo: () => { currentSpawnIndex--; placementHint(`Place Thrall ${currentSpawnIndex + 1}.`); },
+                            onCancel: () => { canvas.stage.off("pointerdown", interactionHandler); cleanUp(); },
+                            onFinish: () => { canvas.stage.off("pointerdown", interactionHandler); cleanUp(); }
+                        });
                         canvas.stage.once("pointerdown", interactionHandler);
                     }}, cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                 }, default: "summon"
@@ -2432,6 +2434,21 @@ globalThis.NecroThrallHelper.checkNightmareHaunt = async (nightmareTokenDoc, spe
     });
 };
 
+// A tendril's save region (tethered to the token by tendrilTetherId) moves with the token, like its aura does.
+Hooks.on("updateToken", async (tokenDoc, changes) => {
+    if (!game.users.activeGM?.isSelf) return;
+    if (!("x" in changes || "y" in changes || "width" in changes || "height" in changes)) return;
+    const tetherId = tokenDoc.getFlag("necromancer-thrall-helper", "tendrilTetherId");
+    const scene = tokenDoc.parent;
+    if (!tetherId || !scene) return;
+    const size = scene.grid.size;
+    const cx = tokenDoc.x + (tokenDoc.width * size) / 2;
+    const cy = tokenDoc.y + (tokenDoc.height * size) / 2;
+    for (const region of scene.regions.filter(r => r.getFlag("necromancer-thrall-helper", "tendrilTetherId") === tetherId)) {
+        const shapes = region.shapes.map(sh => ({ ...sh.toObject(), x: cx, y: cy }));
+        await region.update({ shapes });
+    }
+});
 Hooks.on("updateToken", async (tokenDoc, changes, options, userId) => {
     if (!("x" in changes || "y" in changes)) return;
 
@@ -2949,6 +2966,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             hasSongOfTheSoul: hasSongOfTheSoul,
             actorName: actor?.name || "Necromancer",
             actorLevel: actor?.level || 1,
+            fatalMethod: getFatalMethodName(actor),
             maxFocus: maxFocus,
             focusPips: focusPips,
             hasBonyBarrage: hasBonyBarrage,
@@ -3450,6 +3468,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             dialogHtml.find(`.summon-cfg-group[data-target="${selected}"]`).show();
                         });
 
+                        // No file-browser permission: hide the picker buttons; paste a path or URL instead.
+                        if (!game.user.hasPermission("FILES_BROWSE")) dialogHtml.find(".img-picker-btn").hide();
+
                         dialogHtml.find(".img-picker-btn").on("click", (evt) => {
                             evt.preventDefault();
                             const targetId = $(evt.currentTarget).data("target");
@@ -3683,10 +3704,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
 
                 await actor.update({ "system.resources.focus.value": currentFocus - 1 });
 
+                const batch = createSpawnBatch();
                 let currentSpawnIndex = 0;
                 const maxSpawns = 5;
 
-                placementHint(`Click the canvas to place Skeletal Lancer 1 of ${maxSpawns} within 60 feet. Right-click to finish early.`);
+                placementHint(`Click the canvas to place Skeletal Lancer 1 of ${maxSpawns} within 60 feet. Right-click or Esc undoes the last one; Enter sends early.`);
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -3743,6 +3765,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     }
 
                     if (evt.data.button === 2) {
+                        if (batch.undo()) {
+                            currentSpawnIndex--;
+                            placementHint(`Place Skeletal Lancer ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click or Esc undoes the last one; Enter sends early.`);
+                            canvas.stage.once("pointerdown", interactionHandler);
+                            return;
+                        }
+                        batch.cancel();
                         if (currentSpawnIndex === 0) {
                             await actor.update({ "system.resources.focus.value": currentFocus });
                         }
@@ -3777,17 +3806,23 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     await applyCustomVisuals(finalPayload, actor, "lancer");
 
                     currentSpawnIndex++;
-                    await executeSpawn(finalPayload).catch(err => console.error(err));
+                    await batch.add(finalPayload);
 
                     if (currentSpawnIndex < maxSpawns) {
                         placementHint(`Place Skeletal Lancer ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
                         canvas.stage.once("pointerdown", interactionHandler);
                     } else {
                         cleanUp();
+                        batch.finish();
                         notify("info", "All 5 Skeletal Lancers deployed.");
                     }
                 };
 
+                batch.bindKeys({
+                    onUndo: () => { currentSpawnIndex--; placementHint(`Place Skeletal Lancer ${currentSpawnIndex + 1} of ${maxSpawns}.`); },
+                    onCancel: () => { canvas.stage.off("pointerdown", interactionHandler); if (currentSpawnIndex === 0) actor.update({ "system.resources.focus.value": currentFocus }); cleanUp(); },
+                    onFinish: () => { canvas.stage.off("pointerdown", interactionHandler); cleanUp(); }
+                });
                 canvas.stage.once("pointerdown", interactionHandler);
             });
         }
@@ -4011,8 +4046,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 return;
             }
 
+            const batch = createSpawnBatch();
             let currentSpawn = 0;
-            placementHint(`Click to place Thrall 1 of ${maxSpawns}. Right-click to stop early.`);
+            placementHint(`Click to place Thrall 1 of ${maxSpawns}. Right-click or Esc undoes the last one; Enter sends early.`);
             document.body.style.cursor = "crosshair";
             canvas.app.view.style.cursor = "crosshair";
 
@@ -4057,7 +4093,10 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     canvas.stage.once("pointerdown", spawnHandler);
                     return;
                 }
-                if (evt.data.button === 2) { cleanUpSpawns(); return; }
+                if (evt.data.button === 2) {
+                    if (batch.undo()) { currentSpawn--; placementHint(`Place Thrall ${currentSpawn + 1} of ${maxSpawns}.`); canvas.stage.once("pointerdown", spawnHandler); return; }
+                    batch.cancel(); cleanUpSpawns(); return;
+                }
 
                 const pos = evt.data.getLocalPosition(canvas.app.stage);
                 let spawnX = pos.x; let spawnY = pos.y;
@@ -4097,15 +4136,21 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 currentSpawn++;
                 notify("info", `Spawn request ${currentSpawn} queued...`);
                 
-                executeSpawn(finalPayload).catch(err => console.error(err));
+                batch.add(finalPayload);
 
                 if (currentSpawn < maxSpawns) {
                     canvas.stage.once("pointerdown", spawnHandler);
                 } else {
                     cleanUpSpawns();
+                    batch.finish();
                     notify("info", "All summons requested.");
                 }
             };
+            batch.bindKeys({
+                onUndo: () => { currentSpawn--; placementHint(`Place Thrall ${currentSpawn + 1} of ${maxSpawns}.`); },
+                onCancel: () => { canvas.stage.off("pointerdown", spawnHandler); cleanUpSpawns(); },
+                onFinish: () => { canvas.stage.off("pointerdown", spawnHandler); cleanUpSpawns(); }
+            });
             canvas.stage.once("pointerdown", spawnHandler);
         };
         globalThis.NecroThrallHelper.executeSheddingMatrix = executeSheddingMatrix;
@@ -4397,10 +4442,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                               </div>`
                                 });
 
+                                const batch = createSpawnBatch();
                                 let currentSpawnIndex = 0;
                                 const maxSpawns = 20;
 
-                                placementHint(`Click to place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop early.`);
+                                placementHint(`Click to place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click or Esc undoes the last one; Enter sends early.`);
                                 document.body.style.cursor = "crosshair";
                                 canvas.app.view.style.cursor = "crosshair";
 
@@ -4443,6 +4489,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     }
 
                                     if (evt.data.button === 2) {
+                                        if (batch.undo()) {
+                                            currentSpawnIndex--;
+                                            placementHint(`Place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click or Esc undoes the last one; Enter sends early.`);
+                                            canvas.stage.once("pointerdown", interactionHandler);
+                                            return;
+                                        }
+                                        batch.cancel();
                                         cleanUp();
                                         return;
                                     }
@@ -4451,7 +4504,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     const snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos;
 
                                     const basePayload = await prepareThrallPayload(actor, presetId);
-                                    if (!basePayload) { cleanUp(); return; }
+                                    if (!basePayload) { batch.finish(); cleanUp(); return; }
 
                                     const finalPayload = foundry.utils.mergeObject(basePayload, {
                                         x: snapped.x,
@@ -4461,16 +4514,22 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     });
 
                                     currentSpawnIndex++;
-                                    executeSpawn(finalPayload).catch(err => console.error(err));
+                                    batch.add(finalPayload);
 
                                     if (currentSpawnIndex < maxSpawns) {
-                                        placementHint(`Place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click to stop.`);
+                                        placementHint(`Place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}. Right-click or Esc undoes the last one; Enter sends early.`);
                                         canvas.stage.once("pointerdown", interactionHandler);
                                     } else {
                                         cleanUp();
+                                        batch.finish();
                                     }
                                 };
 
+                                batch.bindKeys({
+                                    onUndo: () => { currentSpawnIndex--; placementHint(`Place Thrall ${currentSpawnIndex + 1} of ${maxSpawns}.`); },
+                                    onCancel: () => { canvas.stage.off("pointerdown", interactionHandler); cleanUp(); },
+                                    onFinish: () => { canvas.stage.off("pointerdown", interactionHandler); cleanUp(); }
+                                });
                                 canvas.stage.once("pointerdown", interactionHandler);
                             }
                         },
@@ -8351,7 +8410,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     i.name?.toLowerCase().includes("puppeteer") ||
                     i.system?.slug?.includes("puppeteer") ||
                     i.system?.slug?.includes("thrall-proliferation")
-                ) || getFascinations(actor).some(f => f.includes("puppeteer"));
+                ) || getFatalMethodName(actor)?.toLowerCase().includes("puppeteer");
 
                 const currentCombat = game.combat;
                 const combatRoundKey = currentCombat ? `${currentCombat.id}-${currentCombat.round}` : null;
@@ -8421,9 +8480,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     selections.push(val);
                                 }
 
+                                const batch = createSpawnBatch();
+                                let proliferationAnnounced = false;
                                 let currentSpawnIndex = 0;
 
-                                placementHint(`Click the canvas to place Summon ${currentSpawnIndex + 1}. Right-click to cancel.`);
+                                placementHint(`Click the canvas to place Summon ${currentSpawnIndex + 1}. Right-click or Esc undoes the last one; Enter sends early.`);
                                 document.body.style.cursor = "crosshair";
                                 canvas.app.view.style.cursor = "crosshair";
 
@@ -8489,6 +8550,13 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     }
 
                                     if (event.data.button === 2) {
+                                        if (batch.undo()) {
+                                            currentSpawnIndex--;
+                                            placementHint(`Place Summon ${currentSpawnIndex + 1}. Right-click or Esc undoes the last one; Enter sends early.`);
+                                            canvas.stage.once("pointerdown", interactionHandler);
+                                            return;
+                                        }
+                                        batch.cancel();
                                         notify("info", "Summoning cancelled.");
                                         cleanUp();
                                         return;
@@ -8507,7 +8575,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     const presetId = selections[currentSpawnIndex];
                                     const basePayload = await prepareThrallPayload(actor, presetId);
                                     
-                                    if (!basePayload) { cleanUp(); return; }
+                                    if (!basePayload) { batch.finish(); cleanUp(); return; }
 
                                     const ownerIds = Object.keys(actor.ownership).filter(k => actor.ownership[k] === 3 && k !== "default");
                                     const newOwnership = { default: 0 };
@@ -8523,7 +8591,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         }
                                     });
 
-                                    if (currentSpawnIndex === 0 && applyProliferation) {
+                                    if (currentSpawnIndex === 0 && applyProliferation && !proliferationAnnounced) {
+                                        proliferationAnnounced = true;
                                         if (combatRoundKey) {
                                             await actor.setFlag("necromancer-thrall-helper", "proliferationRound", combatRoundKey);
                                         }
@@ -8534,22 +8603,25 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                     }
 
                                     currentSpawnIndex++;
-                                    notify("info", `Spawn request for Summon ${currentSpawnIndex} sent to GM...`);
+                                    notify("info", `Summon ${currentSpawnIndex} placed.`);
 
-                                    executeSpawn(finalPayload).catch(err => {
-                                        console.error("Necromancer Helper | Spawn execution failed:", err);
-                                        notify("error", "Failed to materialize the thrall.");
-                                    });
+                                    batch.add(finalPayload);
 
                                     if (currentSpawnIndex < count) {
                                         placementHint(`Place Summon ${currentSpawnIndex + 1}.`);
                                         canvas.stage.once("pointerdown", interactionHandler);
                                     } else {
                                         cleanUp();
+                                        batch.finish();
                                         notify("info", "All summons placed.");
                                     }
                                 };
 
+                                batch.bindKeys({
+                                    onUndo: () => { currentSpawnIndex--; placementHint(`Place Summon ${currentSpawnIndex + 1}.`); },
+                                    onCancel: () => { canvas.stage.off("pointerdown", interactionHandler); cleanUp(); },
+                                    onFinish: () => { canvas.stage.off("pointerdown", interactionHandler); cleanUp(); }
+                                });
                                 canvas.stage.once("pointerdown", interactionHandler);
                             }
                         },
@@ -8762,8 +8834,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 await tendrilsSpell.setFlag("aoe-easy-resolve", "saveDC", exactDC);
                 await tendrilsSpell.setFlag("aoe-easy-resolve", "saveType", "reflex");
 
+                const batch = createSpawnBatch();
                 let currentSpawnIndex = 0;
-                placementHint(`Click the canvas to place Tendril ${currentSpawnIndex + 1} within 30 feet. Right-click to cancel.`);
+                placementHint(`Click the canvas to place Tendril ${currentSpawnIndex + 1} within 30 feet. Right-click to stop.`);
                 document.body.style.cursor = "crosshair";
                 canvas.app.view.style.cursor = "crosshair";
 
@@ -8783,10 +8856,14 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 }
                 const gridSize = canvas.grid.size;
                 const ghost = new PIXI.Graphics();
+                // Preview of the aura the tendril will carry (same colours as its Aura effect), then the token itself.
+                ghost.beginFill(0x880000, 0.25);
+                ghost.lineStyle(2, 0x880000, 0.8);
+                ghost.drawCircle(gridSize/2, gridSize/2, gridSize * 2.5);
+                ghost.endFill();
                 ghost.beginFill(0x990000, 0.4);
                 ghost.lineStyle(2, 0x990000, 0.8);
-                ghost.drawCircle(gridSize/2, gridSize/2, gridSize/2); 
-                ghost.drawCircle(gridSize/2, gridSize/2, gridSize * 2.5);
+                ghost.drawCircle(gridSize/2, gridSize/2, gridSize/2);
                 ghost.endFill();
                 ghost.zIndex = 1000;
                 ghost.position.set(-1000, -1000);
@@ -8827,6 +8904,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
                         notify("info", "Conjuration cancelled.");
                         cleanUp();
+                        batch.finish();
                         return;
                     }
                     const position = event.data.getLocalPosition(canvas.app.stage);
@@ -8861,8 +8939,36 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     });
                     await applyCustomVisuals(finalPayload, actor, "tendril");
 
+                    // The danger zone is a PF2e Aura (like Spell Effect: Bless) on the token itself, so it
+                    // follows the token. It only draws; the save and damage come from the hidden region below.
+                    // PF2e measures auras from the token's edge: 2 squares past it matches the 2.5-square circle.
+                    const auraFeet = 2 * canvas.scene.grid.distance;
+                    finalPayload.delta = finalPayload.delta || {};
+                    finalPayload.delta.items = [...(finalPayload.delta.items || []), {
+                        name: "Effect: Bloody Tendril Zone",
+                        type: "effect",
+                        img: "icons/magic/blood/blood-spatter-splatter-red.webp",
+                        system: {
+                            slug: "bloody-tendril-zone",
+                            tokenIcon: { show: false },
+                            description: { value: "<p>Creatures that end their turn in this aura must attempt the Bloody Tendrils save.</p>" },
+                            duration: { value: -1, unit: "unlimited" },
+                            rules: [{
+                                key: "Aura",
+                                slug: "bloody-tendril-zone",
+                                radius: auraFeet,
+                                traits: [],
+                                effects: [],
+                                appearance: {
+                                    border: { color: "#880000", alpha: 0.8 },
+                                    highlight: { color: "#880000", alpha: 0.25 }
+                                }
+                            }]
+                        }
+                    }];
+
                     currentSpawnIndex++;
-                    executeSpawn(finalPayload).catch(err => console.error(err));
+                    batch.add(finalPayload);
 
                     const regionData = {
                         name: `Bloody Tendril Hazard`,
@@ -8898,29 +9004,15 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             }
                         }
                     };
-                    const drawingData = {
-                        author: game.user.id,
-                        shape: { type: "e", width: gridSize * 5, height: gridSize * 5 },
-                        x: spawnX + (gridSize/2) - (gridSize * 2.5),
-                        y: spawnY + (gridSize/2) - (gridSize * 2.5),
-                        fillType: 1,
-                        fillColor: "#880000",
-                        fillAlpha: 0.25,
-                        strokeWidth: 2,
-                        strokeColor: "#880000",
-                        strokeAlpha: 0.8,
-                        flags: {
-                            "necromancer-thrall-helper": { tendrilTetherId: tetherId }
-                        }
-                    };
                     
-                    await executeHazard(regionData, drawingData);
+                    await executeHazard(regionData, null);
 
                     if (currentSpawnIndex < count) {
                         placementHint(`Place Tendril ${currentSpawnIndex + 1}.`);
                         canvas.stage.once("pointerdown", interactionHandler);
                     } else {
                         cleanUp();
+                        batch.finish();
                         notify("info", "All tendrils placed.");
                     }
                 };

@@ -1,6 +1,7 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
 import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
+import { checkBrowsePermissions } from "./system/permissions-notice.js";
 import { setupEffectColorHooks } from "./system/effect-colors.js";
 import { notify, notifyForce } from "./system/notify.js";
 
@@ -57,6 +58,15 @@ Hooks.once("init", () => {
         default: true
     });
 
+    game.settings.register("necromancer-thrall-helper", "suppressBrowseWarning", {
+        name: "Hide the file-browser permission notice",
+        hint: "Stops the GM notice about necromancer players who lack the Use File Browser permission.",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: false
+    });
+
     game.settings.register("necromancer-thrall-helper", "notificationLevel", {
         name: "Notification Level",
         hint: "Which pop-up messages to show you. Placement instructions and permission problems always show. Suppressed messages are still written to the console.",
@@ -78,6 +88,7 @@ Hooks.once("ready", () => {
     setupHooks();
     setupEffectColorHooks();
     repairWorldThrallArt().catch(err => console.warn("Necromancer Thrall Helper | Could not repair thrall art:", err));
+    checkBrowsePermissions().catch(err => console.warn("Necromancer Thrall Helper | Permission check failed:", err));
 });
 
 Hooks.on("getSceneControlButtons", (controls) => {

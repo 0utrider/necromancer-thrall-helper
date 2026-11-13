@@ -240,6 +240,37 @@ export function isArtMissing(path) {
     return !!id && !game.modules.get(id)?.active;
 }
 
+/**
+ * What the player picked for a PF2e class-feature choice (Fatal Method, Grim Fascination...).
+ * The selection lives on the class feature ITEM (flags.pf2e.rulesSelections.<key> = compendium
+ * UUID), not on the actor; its GrantItem puts the chosen feature on the actor with
+ * flags.pf2e.grantedBy.id pointing back at the feature. Returns [{ name, slug }], so new,
+ * custom and homebrew options work without a hard-coded list.
+ */
+export function getFeatureChoices(actor, featureSlug) {
+    if (!actor) return [];
+    const out = [];
+    for (const feature of actor.items.filter(i => i.slug === featureSlug)) {
+        const granted = actor.items.filter(i => i.flags?.pf2e?.grantedBy?.id === feature.id);
+        if (granted.length) {
+            for (const g of granted) out.push({ name: g.name, slug: g.slug ?? g.system?.slug ?? null });
+            continue;
+        }
+        // Fallback: the stored selection (a UUID, or a plain slug on older data).
+        for (const value of Object.values(feature.flags?.pf2e?.rulesSelections ?? {})) {
+            if (typeof value !== "string" || !value) continue;
+            const doc = value.includes(".") ? fromUuidSync(value, { strict: false }) : null;
+            out.push({ name: doc?.name ?? value, slug: doc?.slug ?? doc?.system?.slug ?? value.toLowerCase() });
+        }
+    }
+    return out;
+}
+
+/** Display name of the necromancer's Fatal Method (e.g. "Puppeteer"), or null. */
+export function getFatalMethodName(actor) {
+    return getFeatureChoices(actor, "fatal-method")[0]?.name ?? null;
+}
+
 /** True if this user may browse files (GMs always can), so wildcard patterns can be listed locally. */
 export function canBrowseFiles() {
     return !!game.user?.isGM || !!game.user?.can("FILES_BROWSE");
