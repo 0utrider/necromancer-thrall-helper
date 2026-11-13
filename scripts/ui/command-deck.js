@@ -5,6 +5,20 @@ import { notify, notifyForce, placementHint } from "../system/notify.js";
 import { effectColor, effectColorNum, ownerColor, zoneBorderColor, syncAllParticleColors, EFFECT_COLOR_KEYS } from "../system/effect-colors.js";
 
 
+/**
+ * Update a document only if it still exists; a "does not exist" race (several thralls dying at
+ * once, a region already purged) is ignored instead of surfacing a SocketError.
+ */
+async function updateIfExists(doc, data) {
+    if (!doc || doc.collection?.has?.(doc.id) === false) return null;
+    try {
+        return await doc.update(data);
+    } catch (err) {
+        if (/does not exist/i.test(err?.message ?? "")) return null;
+        throw err;
+    }
+}
+
 globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
 globalThis.NecroThrallHelper.purgeGraphics = (sceneId, { regionIds = [], drawingIds = [], templateIds = [] }) => {
     if (game.user.isGM) {
@@ -602,8 +616,18 @@ Hooks.on("deleteItem", async (itemDoc, options, userId) => {
         globalThis.NecroThrallHelper.purgeGraphics(targetScene.id, { regionIds: rIds, drawingIds: dIds });
     }
 });
+// Necrotic Bomb / Blast cards are posted as the caster, not whichever token the user has selected.
+Hooks.on("preCreateChatMessage", (message) => {
+    const originUuid = message.flags?.["aoe-easy-resolve"]?.itemUuid ?? message.flags?.pf2e?.origin?.uuid;
+    if (!originUuid) return;
+    const item = fromUuidSync(originUuid, { strict: false });
+    const actor = item?.parent;
+    if (!actor || actor.documentName !== "Actor" || !/^necrotic (bomb|blast)/i.test(item.name ?? "")) return;
+    message.updateSource({ speaker: ChatMessage.getSpeaker({ actor, token: actor.getActiveTokens(false, true)[0] }) });
+});
+
 Hooks.on("deleteToken", async (tokenDoc, options, userId) => {
-    if (!game.user.isGM) return;
+    if (!game.users.activeGM?.isSelf) return; // one GM runs the cleanup, not every connected GM
 
     if (tokenDoc.getFlag("necromancer-thrall-helper", "isRecurringNightmare")) {
         const masterId = tokenDoc.getFlag("necromancer-thrall-helper", "masterId");
@@ -779,7 +803,7 @@ if (hasFleshFascination) {
 
         console.log(`Necromancer Helper | Thick Skin setting DC: ${spellDC}. Updating item flags.`);
 
-        await thickSkinItem.update({
+        await updateIfExists(thickSkinItem, {
             "flags.aoe-easy-resolve": {
                 useOverride: true,
                 saveType: "fortitude",
@@ -1452,24 +1476,26 @@ Hooks.on("renderChatMessageHTML", (message, html, data) => {
             if (presets.length === 0) return notify("warn", "No thrall presets found.");
             let optionsHtml = `<option value="default">${defaultThrallLabel(attacker)}</option>` + '<option value="random">(Random Family Member)</option>';
             presets.forEach(p => { optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attacker.id && t.name === p.name)) ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>` : `<option value="${p.id}">${p.name}</option>`; });
-            new Dialog({
-                title: "Inevitable Return",
-                content: `<form><p>Select the identity for the new <b>${size === 'sm' ? 'Small' : 'Medium'}</b> thrall rising from <b>${targetToken.name}</b>:</p><div class="form-group"><label>Thrall Identity:</label><div class="form-fields"><select id="inevitable-preset">${optionsHtml}</select></div></div></form>`,
-                buttons: {
-                    summon: { icon: '<i class="fas fa-ghost"></i>', label: "Rise", callback: async (dialogHtml) => {
-                        await attacker.setFlag("necromancer-thrall-helper", `harvested_${targetId}`, true);
-                        if (game.user.isGM) await message.setFlag("necromancer-thrall-helper", "reactionUsed", "Inevitable Return");
-                        else {
-                            game.socket.emit("module.necromancer-thrall-helper", { action: "lockDeathReaction", messageId: message.id, label: "Inevitable Return" });
-                            $btn.closest('.death-reaction-actions').html(`<div style="background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 4px; padding: 6px; text-align: center; margin-top: 4px;"><span style="text-decoration: line-through; color: #666; font-weight: bold; font-size: 0.9em; display: block;"><i class="fas fa-ban"></i> Death Reaction</span><span style="display: block; color: #c084fc; font-size: 0.85em; font-style: italic; margin-top: 2px;">Expended: Inevitable Return</span></div>`);
-                        }
-                        const basePayload = await prepareThrallPayload(attacker, dialogHtml[0].querySelector("#inevitable-preset").value);
-                        if (!basePayload) return;
-                        executeSpawn(foundry.utils.mergeObject(basePayload, { x: targetToken.x, y: targetToken.y, elevation: targetToken.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 }, system: { traits: { size: { value: size } } } } })).catch(() => notify("error", "Failed to materialize the corpse thrall."));
-                        notify("info", "The corpse yields its thrall.");
-                    }}, cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
-                }, default: "summon"
-            }).render(true);
+            const presetChoice = await foundry.applications.api.DialogV2.wait({
+                window: { title: "Inevitable Return", icon: "fas fa-skull" },
+                content: `<p>Select the identity for the new <b>${size === 'sm' ? 'Small' : 'Medium'}</b> thrall rising from <b>${targetToken.name}</b>:</p><div class="form-group"><label>Thrall Identity:</label><div class="form-fields"><select id="inevitable-preset">${optionsHtml}</select></div></div>`,
+                rejectClose: false,
+                buttons: [
+                    { action: "rise", label: "Rise", icon: "fas fa-ghost", default: true, callback: (event, button, dialog) => dialog.element.querySelector("#inevitable-preset").value },
+                    { action: "cancel", label: "Cancel", icon: "fas fa-times" }
+                ]
+            });
+            if (!presetChoice || presetChoice === "cancel") return;
+            await attacker.setFlag("necromancer-thrall-helper", `harvested_${targetId}`, true);
+            if (game.user.isGM) await message.setFlag("necromancer-thrall-helper", "reactionUsed", "Inevitable Return");
+            else {
+                game.socket.emit("module.necromancer-thrall-helper", { action: "lockDeathReaction", messageId: message.id, label: "Inevitable Return" });
+                $btn.closest('.death-reaction-actions').html(`<div style="background: rgba(0,0,0,0.5); border: 1px solid #444; border-radius: 4px; padding: 6px; text-align: center; margin-top: 4px;"><span style="text-decoration: line-through; color: #666; font-weight: bold; font-size: 0.9em; display: block;"><i class="fas fa-ban"></i> Death Reaction</span><span style="display: block; color: #c084fc; font-size: 0.85em; font-style: italic; margin-top: 2px;">Expended: Inevitable Return</span></div>`);
+            }
+            const basePayload = await prepareThrallPayload(attacker, presetChoice);
+            if (!basePayload) return;
+            executeSpawn(foundry.utils.mergeObject(basePayload, { x: targetToken.x, y: targetToken.y, elevation: targetToken.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 }, system: { traits: { size: { value: size } } } } }), canvas.scene.id, { corpse: { tokenId: targetToken.id, sceneId: canvas.scene.id, name: targetToken.name } }).catch(() => notify("error", "Failed to materialize the corpse thrall."));
+            notify("info", "The corpse yields its thrall.");
         }
 
         else if ($btn.hasClass('flesh-terrain-btn')) {
@@ -1992,7 +2018,7 @@ Hooks.on("deleteToken", async (tokenDoc, options, userId) => {
     if (game.combat) {
         const orphanedCombatants = game.combat.combatants.filter(c => c.tokenId === tokenDoc.id);
         if (orphanedCombatants.length > 0) {
-            const ids = orphanedCombatants.map(c => c.id);
+            const ids = orphanedCombatants.map(c => c.id).filter(id => game.combat?.combatants.has(id));
             game.combat.deleteEmbeddedDocuments("Combatant", ids).catch(err => {
                 console.warn("Necromancer Helper | Ignored safe-delete warning:", err);
             });
@@ -2207,8 +2233,8 @@ Hooks.on("pf2e.startTurn", async (combatant, combat, userId) => {
                 await anchor.setFlag("necromancer-thrall-helper", "hordeRadius", newRadius);
                 pixels = (newRadius / gridDist) * gridSize;
                 
-                await canvas.scene.regions.find(r => r.getFlag("necromancer-thrall-helper", "anchorId") === anchor.id)?.update({ shapes: [{ type: "ellipse", hole: false, x: cX, y: cY, radiusX: pixels, radiusY: pixels, rotation: 0 }] });
-                await canvas.scene.drawings.find(d => d.getFlag("necromancer-thrall-helper", "anchorId") === anchor.id)?.update({ x: cX - pixels, y: cY - pixels, shape: { type: "e", width: pixels * 2, height: pixels * 2 } });
+                await updateIfExists(canvas.scene.regions.find(r => r.getFlag("necromancer-thrall-helper", "anchorId") === anchor.id), { shapes: [{ type: "ellipse", hole: false, x: cX, y: cY, radiusX: pixels, radiusY: pixels, rotation: 0 }] });
+                await updateIfExists(canvas.scene.drawings.find(d => d.getFlag("necromancer-thrall-helper", "anchorId") === anchor.id), { x: cX - pixels, y: cY - pixels, shape: { type: "e", width: pixels * 2, height: pixels * 2 } });
                 
                 ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: combatant.actor }), content: `<p><strong>Zombie Horde Expands!</strong> The horde consumes ${thralls.length} thrall(s), swelling its radius to ${newRadius} feet!</p>` });
             }
@@ -2236,7 +2262,7 @@ Hooks.on("createToken", async (tokenDoc, options, userId) => {
 
     const activeNecroToken = masterActor.getActiveTokens().find(t => t.scene?.id === tokenDoc.parent?.id);
     if (activeNecroToken && activeNecroToken.document.elevation !== tokenDoc.elevation) {
-        await tokenDoc.update({ elevation: activeNecroToken.document.elevation });
+        await updateIfExists(tokenDoc, { elevation: activeNecroToken.document.elevation });
     }
 
     const isCustomThrall = tokenDoc.getFlag("necromancer-thrall-helper", "masterId") === masterId;
@@ -2446,7 +2472,7 @@ Hooks.on("updateToken", async (tokenDoc, changes) => {
     const cy = tokenDoc.y + (tokenDoc.height * size) / 2;
     for (const region of scene.regions.filter(r => r.getFlag("necromancer-thrall-helper", "tendrilTetherId") === tetherId)) {
         const shapes = region.shapes.map(sh => ({ ...sh.toObject(), x: cx, y: cy }));
-        await region.update({ shapes });
+        await updateIfExists(region, { shapes });
     }
 });
 Hooks.on("updateToken", async (tokenDoc, changes, options, userId) => {
@@ -2467,8 +2493,8 @@ Hooks.on("updateToken", async (tokenDoc, changes, options, userId) => {
         const region = scene.regions.find(r => r.getFlag("necromancer-thrall-helper", "anchorId") === tokenDoc.id);
         const drawing = scene.drawings.find(d => d.getFlag("necromancer-thrall-helper", "anchorId") === tokenDoc.id);
         
-        if (region) await region.update({ shapes: [{ type: "ellipse", hole: false, x: tCenterX, y: tCenterY, radiusX: pixels, radiusY: pixels, rotation: 0 }] });
-        if (drawing) await drawing.update({ x: tCenterX - pixels, y: tCenterY - pixels, shape: { type: "e", width: pixels * 2, height: pixels * 2 } });
+        if (region) await updateIfExists(region, { shapes: [{ type: "ellipse", hole: false, x: tCenterX, y: tCenterY, radiusX: pixels, radiusY: pixels, rotation: 0 }] });
+        if (drawing) await updateIfExists(drawing, { x: tCenterX - pixels, y: tCenterY - pixels, shape: { type: "e", width: pixels * 2, height: pixels * 2 } });
     }
 
     if (game.user.id !== userId) return;
@@ -8815,7 +8841,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 };
 
                 if (!tendrilsSpell) {
-                    const spellData = { name: "Bloody Tendrils", type: "spell", img: "icons/magic/blood/blood-spatter-splatter-red.webp", system: spellSystemData };
+                    const spellData = { name: "Bloody Tendrils", type: "spell", img: "icons/skills/wounds/blood-spurt-spray-red.webp", system: spellSystemData };
                     const created = await actor.createEmbeddedDocuments("Item", [spellData]);
                     tendrilsSpell = created[0];
                 } else {
@@ -8947,7 +8973,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     finalPayload.delta.items = [...(finalPayload.delta.items || []), {
                         name: "Effect: Bloody Tendril Zone",
                         type: "effect",
-                        img: "icons/magic/blood/blood-spatter-splatter-red.webp",
+                        img: "icons/skills/wounds/blood-spurt-spray-red.webp",
                         system: {
                             slug: "bloody-tendril-zone",
                             tokenIcon: { show: false },
@@ -8961,7 +8987,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 effects: [],
                                 appearance: {
                                     border: { color: "#880000", alpha: 0.8 },
-                                    highlight: { color: "#880000", alpha: 0.25 }
+                                    highlight: { color: "#880000", alpha: 0.2 }
                                 }
                             }]
                         }
@@ -8988,7 +9014,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             type: "executeScript",
                             system: {
                                 events: ["tokenTurnEnd"],
-                                source: `console.log('AoE Easy Resolve | Tendril Region Triggered!', event);\nif (game.modules.get('aoe-easy-resolve')?.api?.handleRegionEvent) {\n  game.modules.get('aoe-easy-resolve').api.handleRegionEvent(event, '${tendrilsSpell.uuid}');\n}`
+                                source: `if (game.modules.get('aoe-easy-resolve')?.api?.handleRegionEvent) {\n  game.modules.get('aoe-easy-resolve').api.handleRegionEvent(event, '${tendrilsSpell.uuid}');\n}`
                             }
                         }],
                         flags: {

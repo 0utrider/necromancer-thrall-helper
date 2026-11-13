@@ -12,18 +12,19 @@
         
         /* Hiked Header - Single Baseline */
         .thrall-deck-wrapper header { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
+            display: grid; 
+            grid-template-columns: minmax(0, 1fr) auto; 
+            align-items: end; 
+            row-gap: 4px; 
             border-bottom: 2px solid #555; 
             padding-bottom: 8px; 
             flex-shrink: 0; 
         }
-        :where(.necro-thrall) .header-info { display: flex; flex-direction: column; gap: 3px; min-width: 0; flex: 1 1 auto; }
-        :where(.necro-thrall) .header-info h2 { border: none; margin: 0; padding: 0; font-size: 1.25em; color: #fff; letter-spacing: 0.5px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-        :where(.necro-thrall) .header-info .subtext { display: block; font-size: 0.85em; line-height: 1.25; color: #aaa; white-space: nowrap; }
+        :where(.necro-thrall) .thrall-deck-wrapper header h2, :where(.necro-thrall) header .deck-name { grid-column: 1 / -1; border: none; margin: 0; padding: 0; font-size: 1.25em; color: #fff; letter-spacing: 0.5px; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        :where(.necro-thrall) header .header-sub { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+        :where(.necro-thrall) header .header-sub .subtext { display: block; font-size: 0.85em; line-height: 1.25; color: #aaa; white-space: nowrap; }
         
-       :where(.necro-thrall) .header-controls { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; justify-content: flex-end; }
+       :where(.necro-thrall) .header-controls { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
         :where(.necro-thrall) .focus-tracker { display: flex; align-items: center; gap: 5px; font-size: 1em; font-weight: bold; }
         :where(.necro-thrall) .focus-tracker .focus-label { color: #a855f7; font-weight: bold; margin-right: 2px; font-size: 0.9em; }
         :where(.necro-thrall) .focus-tracker { gap: 4px; }
@@ -64,18 +65,15 @@
         }
         :where(.necro-thrall) .footer-grid button:hover { background: rgba(255, 255, 255, 0.1); color: #fff; border-color: #777; }
         
-        /* Bread & Butter Spawn Buttons */
-        :where(.necro-thrall) .core-spawn-btn {
-            font-size: 1.2em !important;
-            padding: 14px 10px !important;
-            background: rgba(255, 255, 255, 0.08) !important;
-            border: 2px solid #888 !important;
-            color: #fff !important;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            justify-content: center !important;
+        /* Action buttons: one shared look; the flavor-* classes only add the accent colour */
+        :where(.necro-thrall) .footer-grid .deck-action-btn {
+            box-sizing: border-box; min-height: 46px; padding: 8px 12px; margin: 0;
+            display: flex; align-items: center; justify-content: center; gap: 8px; text-align: center;
+            font-size: 1em; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px;
+            color: #fff; background: rgba(255, 255, 255, 0.08); border: 1px solid #666; border-radius: 4px;
         }
-        :where(.necro-thrall) .core-spawn-btn:hover { background: rgba(255, 255, 255, 0.15) !important; border-color: #fff !important; }
+        :where(.necro-thrall) .footer-grid .deck-action-btn i { flex: none; width: 1.2em; text-align: center; }
+        :where(.necro-thrall) .footer-grid .deck-action-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.15); border-color: #fff; }
 
         /* Subtle Flavor Borders - Thickened */
         :where(.necro-thrall) .flavor-bone { border-left: 5px solid #d97706 !important; }
@@ -137,8 +135,8 @@
     </style>
 
     <header>
-        <div class="header-info">
-            <h2 title="{{actorName}}">{{actorName}}</h2>
+        <h2 class="deck-name" title="{{actorName}}">{{actorName}}</h2>
+        <div class="header-sub">
             <span class="subtext">L{{actorLevel}}{{#if fatalMethod}} {{fatalMethod}}{{/if}}</span>
             <span class="subtext">Thrall Dmg: {{thrallDamage}}</span>
         </div>
@@ -310,53 +308,53 @@
     <!-- Footer Grid for Summons -->
     <div class="footer-grid">
         <!-- Kept Spawn 1 and 2 wide by using flex-basis 100% or letting grid handle it -->
-        <button type="button" class="spawn-btn flavor-grave core-spawn-btn" data-count="1"><i class="fas fa-ghost"></i> Spawn 1</button>
-        <button type="button" class="spawn-btn flavor-grave core-spawn-btn" data-count="2"><i class="fas fa-skulls"></i> Spawn 2</button>
+        <button type="button" class="spawn-btn flavor-grave deck-action-btn" data-count="1"><i class="fas fa-ghost"></i> Spawn 1</button>
+        <button type="button" class="spawn-btn flavor-grave deck-action-btn" data-count="2"><i class="fas fa-skull-crossbones"></i> Spawn 2</button>
         
         {{#if hasConglomerateOfLimbs}}
-        <button type="button" class="conjure-conglom-btn flavor-blood"><i class="fas fa-hand-paper"></i> Conglomerate</button>
+        <button type="button" class="conjure-conglom-btn flavor-blood deck-action-btn"><i class="fas fa-hand-paper"></i> Conglomerate</button>
         {{/if}}
 
 {{#if hasLivingGraveyard}}
-        <button type="button" class="living-graveyard-btn flavor-grave"><i class="fas fa-monument"></i> Living Graveyard</button>
+        <button type="button" class="living-graveyard-btn flavor-grave deck-action-btn"><i class="fas fa-monument"></i> Living Graveyard</button>
         {{#if isGraveyardActive}}
-        <button type="button" class="graveyard-shed-btn flavor-grave"><i class="fas fa-ghost"></i> Shed 5 Corpses</button>
+        <button type="button" class="graveyard-shed-btn flavor-grave deck-action-btn"><i class="fas fa-ghost"></i> Shed 5 Corpses</button>
         {{/if}}
         {{/if}}
 
         {{#if hasSkeletalLancers}}
-        <button type="button" class="conjure-lancers-btn flavor-bone"><i class="fas fa-shield-alt"></i> Skeletal Lancers (5)</button>
+        <button type="button" class="conjure-lancers-btn flavor-bone deck-action-btn"><i class="fas fa-shield-alt"></i> Skeletal Lancers (5)</button>
         {{/if}}
 
         {{#if hasBloodyTendrils}}
-        <button type="button" class="conjure-tendrils-btn flavor-blood"><i class="fas fa-biohazard"></i> Bloody Tendrils ({{tendrilCount}})</button>
+        <button type="button" class="conjure-tendrils-btn flavor-blood deck-action-btn"><i class="fas fa-biohazard"></i> Bloody Tendrils ({{tendrilCount}})</button>
         {{/if}}
 
         {{#if hasPerfectedThrall}}
-        <button type="button" class="conjure-perfected-btn flavor-void"><i class="fas fa-crown"></i> Perfected Thrall</button>
+        <button type="button" class="conjure-perfected-btn flavor-void deck-action-btn"><i class="fas fa-crown"></i> Perfected Thrall</button>
         {{/if}}
 
         {{#if hasInstantArmy}}
-        <button type="button" class="instant-army-btn flavor-void" {{#if instantArmyUsed}}disabled{{/if}}>
+        <button type="button" class="instant-army-btn flavor-void deck-action-btn" {{#if instantArmyUsed}}disabled{{/if}}>
             <i class="fas fa-khanda"></i> {{#if instantArmyUsed}}Instant Army (Used){{else}}Instant Army (1/Day){{/if}}
         </button>
         {{/if}}
 
         {{#if hasDreadMosquitoStorm}}
             {{#if activeStormCount}}
-            <button type="button" class="dismiss-storm-btn flavor-blood"><i class="fas fa-times-circle"></i> Dismiss Mosquito Swarm</button>
+            <button type="button" class="dismiss-storm-btn flavor-blood deck-action-btn"><i class="fas fa-times-circle"></i> Dismiss Mosquito Swarm</button>
             {{else}}
-            <button type="button" class="dms-btn flavor-blood"><i class="fas fa-bug"></i> Dread Mosquito Swarm</button>
+            <button type="button" class="dms-btn flavor-blood deck-action-btn"><i class="fas fa-bug"></i> Dread Mosquito Swarm</button>
             {{/if}}
         {{/if}}
 
         {{#if canConjureNightmare}}
-        <button type="button" class="conjure-nightmare-btn flavor-spirit"><i class="fas fa-ghost"></i> Recurring Nightmare</button>
+        <button type="button" class="conjure-nightmare-btn flavor-spirit deck-action-btn"><i class="fas fa-ghost"></i> Recurring Nightmare</button>
         {{/if}}
 
         {{#if canSustainNightmare}}
-        <button type="button" class="sustain-nightmare-btn flavor-spirit"><i class="fas fa-sync-alt"></i> Resummon Nightmare</button>
-        <button type="button" class="end-nightmare-btn flavor-spirit" title="Let Nightmare Fade"><i class="fas fa-ban"></i> End</button>
+        <button type="button" class="sustain-nightmare-btn flavor-spirit deck-action-btn"><i class="fas fa-sync-alt"></i> Resummon Nightmare</button>
+        <button type="button" class="end-nightmare-btn flavor-spirit deck-action-btn" title="Let Nightmare Fade"><i class="fas fa-ban"></i> End</button>
         {{/if}}
     </div>
 </div>

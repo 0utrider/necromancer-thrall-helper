@@ -2,6 +2,7 @@ import { ThrallCommandDeck } from "./ui/command-deck.js";
 import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
 import { checkBrowsePermissions } from "./system/permissions-notice.js";
+import { sweepEmptyRegions } from "./system/region-sweep.js";
 import { setupEffectColorHooks } from "./system/effect-colors.js";
 import { notify, notifyForce } from "./system/notify.js";
 
@@ -88,6 +89,7 @@ Hooks.once("ready", () => {
     setupHooks();
     setupEffectColorHooks();
     repairWorldThrallArt().catch(err => console.warn("Necromancer Thrall Helper | Could not repair thrall art:", err));
+    sweepEmptyRegions().catch(err => console.warn("Necromancer Thrall Helper | Region sweep failed:", err));
     checkBrowsePermissions().catch(err => console.warn("Necromancer Thrall Helper | Permission check failed:", err));
 });
 
@@ -98,7 +100,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
         icon: "fas fa-skull",
         visible: true, 
         button: true,
-        onClick: () => {
+        onChange: () => {
             let isNecro = game.user.isGM;
             const requireNecro = game.settings.get("necromancer-thrall-helper", "requireNecromancer");
             

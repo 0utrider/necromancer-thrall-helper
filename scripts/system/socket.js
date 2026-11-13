@@ -40,6 +40,55 @@ function clearSpawnMarker(marker) {
     marker.destroy({ children: true });
 }
 
+// Inevitable Return: what happens to the corpse token the new thrall rose from. GM-side only.
+let rememberedCorpseFate = null; // "keep" | "hide", for this session once the GM ticks "Remember"
+
+const CORPSE_NOTE = "Hidden corpses can't be looted by players (Lootable NPCs).";
+
+function corpseFateHtml(name, group) {
+    const esc = foundry.utils.escapeHTML ?? (t => t);
+    return `<fieldset class="thrall-corpse-fate" style="margin:2px 0 6px 28px;padding:4px 8px;">
+        <legend><small>Corpse: ${esc(name)}</small></legend>
+        <label style="display:block;"><input type="radio" name="${group}" value="keep" checked> Keep corpse on board</label>
+        <label style="display:block;"><input type="radio" name="${group}" value="hide"> Hide corpse</label>
+    </fieldset>`;
+}
+
+/** Hide the corpse token if the GM chose to. Never throws: the token may already be gone. */
+async function applyCorpseFate(corpse, fate) {
+    if (!game.user.isGM || fate !== "hide" || !corpse) return;
+    const scene = game.scenes.get(corpse.sceneId);
+    const tokenDoc = scene?.tokens.get(corpse.tokenId);
+    if (tokenDoc) await tokenDoc.update({ hidden: true }).catch(() => {});
+}
+
+/** GM-initiated spawn: ask what to do with the corpse once the thrall has risen. */
+async function promptCorpseFate(corpse) {
+    if (rememberedCorpseFate) return applyCorpseFate(corpse, rememberedCorpseFate);
+    const { DialogV2 } = foundry.applications.api;
+    const result = await DialogV2.wait({
+        window: { title: "Inevitable Return", icon: "fas fa-skull" },
+        content: `<p>The thrall has risen. What should happen to the corpse?</p>
+            ${corpseFateHtml(corpse.name ?? "corpse", "corpse-fate")}
+            <label style="display:block;margin-top:6px;"><input type="checkbox" name="remember"> Remember for this session</label>
+            <p><small>${CORPSE_NOTE}</small></p>`,
+        rejectClose: false,
+        buttons: [{
+            action: "ok",
+            label: "Confirm",
+            icon: "fas fa-check",
+            default: true,
+            callback: (event, button, dialog) => ({
+                fate: dialog.element.querySelector("input[name=corpse-fate]:checked")?.value ?? "keep",
+                remember: dialog.element.querySelector("input[name=remember]")?.checked ?? false
+            })
+        }]
+    });
+    if (!result) return; // closed: leave the corpse as it is
+    if (result.remember) rememberedCorpseFate = result.fate;
+    await applyCorpseFate(corpse, result.fate);
+}
+
 /**
  * A group of placements sent to the GM as ONE approval request. Players queue each placement
  * (numbered markers on their own map) and call finish(); a GM's placements spawn immediately,
@@ -65,12 +114,12 @@ export function createSpawnBatch({ sceneId = canvas.scene?.id } = {}) {
         get size() { return items.length; },
 
         /** Queue a placement (players) or spawn it right away (GM). */
-        add(payload) {
-            if (isGM) return executeSpawn(payload, sceneId).catch(err => console.error(err));
+        add(payload, extras = {}) {
+            if (isGM) return executeSpawn(payload, sceneId, extras).catch(err => console.error(err));
             const marker = canvas.scene?.id === sceneId
                 ? drawSpawnMarker(payload.x, payload.y, items.length + 1)
                 : null;
-            items.push({ payload, marker });
+            items.push({ payload, marker, corpse: extras.corpse ?? null });
             return items.length;
         },
 
@@ -105,7 +154,7 @@ export function createSpawnBatch({ sceneId = canvas.scene?.id } = {}) {
             const request = {
                 sceneId,
                 necroId,
-                items: items.map((it, i) => ({ index: i + 1, payload: it.payload }))
+                items: items.map((it, i) => ({ index: i + 1, payload: it.payload, corpse: it.corpse }))
             };
             try {
                 const result = await socketlibSocket.executeAsGM("requestSpawnBatch", request);
@@ -172,11 +221,14 @@ async function requestSpawnBatch({ sceneId, necroId, items = [] } = {}) {
         const necro = necroId ? game.actors.get(necroId) : null;
         const necroName = necro ? necro.name : "A Necromancer";
         let approvedIndexes;
+        let fates = {};
 
         if (game.settings.get("necromancer-thrall-helper", "autoApproveSpawns")) {
             approvedIndexes = items.map(i => i.index);
         } else {
-            approvedIndexes = await askApproval({ items, scene, necroName, markers });
+            const answer = await askApproval({ items, scene, necroName, markers });
+            approvedIndexes = answer.approved;
+            fates = answer.corpse;
         }
 
         const approvedSet = new Set(approvedIndexes);
@@ -203,6 +255,13 @@ async function requestSpawnBatch({ sceneId, necroId, items = [] } = {}) {
         }
         const created = await scene.createEmbeddedDocuments("Token", spawnData);
 
+        // Corpses are only touched for spawns that were actually approved and created.
+        if (created?.length) {
+            for (const it of approvedItems) {
+                if (it.corpse) await applyCorpseFate(it.corpse, fates[it.index] ?? rememberedCorpseFate ?? "keep");
+            }
+        }
+
         if (created?.length && isViewingScene()) {
             setTimeout(() => {
                 for (const doc of created) {
@@ -222,19 +281,23 @@ async function requestSpawnBatch({ sceneId, necroId, items = [] } = {}) {
     }
 }
 
-/** Show the approval dialog. Resolves with the checked item indexes; closing the dialog denies all. */
+/** Show the approval dialog. Resolves with { approved: [indexes], corpse: {index: "keep"|"hide"} }; closing denies all. */
 async function askApproval({ items, scene, necroName, markers }) {
     const esc = foundry.utils.escapeHTML ?? (t => t);
     const n = items.length;
+    const showCorpse = rememberedCorpseFate === null;
+    const anyCorpse = items.some(i => i.corpse);
     const rows = items.map(it => `
         <label class="thrall-approve-row" data-index="${it.index}" style="display:flex;align-items:center;gap:8px;padding:3px 4px;border-radius:4px;">
             <input type="checkbox" name="approve" value="${it.index}" checked>
             <a class="thrall-approve-pan" data-index="${it.index}" title="Show on map"><b>#${it.index}</b></a>
             <span>${esc(it.payload.name || "Thrall")}</span>
-        </label>`).join("");
+        </label>${showCorpse && it.corpse ? corpseFateHtml(it.corpse.name ?? "corpse", `corpse-${it.index}`) : ""}`).join("");
     const content = `
         <p><b>${esc(necroName)}</b> wants to summon ${n} Thrall${n === 1 ? "" : "s"} on scene "<b>${esc(scene.name)}</b>". The requested spots are highlighted on the map.</p>
-        <div class="thrall-approve-list">${rows}</div>`;
+        <div class="thrall-approve-list">${rows}</div>${anyCorpse && showCorpse ? `
+        <label style="display:block;margin-top:6px;"><input type="checkbox" name="remember"> Remember the corpse choice for this session</label>
+        <p><small>${CORPSE_NOTE}</small></p>` : ""}`;
 
     const dim = (activeIndex) => {
         for (const [idx, marker] of markers) {
@@ -270,13 +333,25 @@ async function askApproval({ items, scene, necroName, markers }) {
                 label: "Approve selected",
                 icon: "fas fa-check",
                 default: true,
-                callback: (event, button, dialog) =>
-                    [...dialog.element.querySelectorAll("input[name=approve]:checked")].map(i => Number(i.value))
+                callback: (event, button, dialog) => {
+                    const el = dialog.element;
+                    const corpse = {};
+                    for (const radio of el.querySelectorAll("input[type=radio][name^=corpse-]:checked")) {
+                        corpse[Number(radio.name.slice("corpse-".length))] = radio.value;
+                    }
+                    if (el.querySelector("input[name=remember]")?.checked) {
+                        rememberedCorpseFate = Object.values(corpse)[0] ?? rememberedCorpseFate;
+                    }
+                    return {
+                        approved: [...el.querySelectorAll("input[name=approve]:checked")].map(i => Number(i.value)),
+                        corpse
+                    };
+                }
             },
-            { action: "deny", label: "Deny all", icon: "fas fa-times", callback: () => [] }
+            { action: "deny", label: "Deny all", icon: "fas fa-times", callback: () => ({ approved: [], corpse: {} }) }
         ]
     });
-    return Array.isArray(result) ? result : [];
+    return result?.approved ? result : { approved: [], corpse: {} };
 }
 
 async function deleteTokenAsGM(tokenId, sceneId) {
@@ -313,7 +388,7 @@ export const setupSocket = () => {
     return !!socketlibSocket;
 };
 
-export async function executeSpawn(payload, sceneId = canvas.scene?.id) {
+export async function executeSpawn(payload, sceneId = canvas.scene?.id, extras = {}) {
     if (game.user.isGM) {
         const scene = game.scenes.get(sceneId) || canvas.scene || game.scenes.active;
         if (!scene) return;
@@ -337,6 +412,7 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id) {
                 }
             }, 100);
         }
+        if (createdTokens?.length && extras.corpse) promptCorpseFate(extras.corpse).catch(err => console.error(err));
         return createdTokens;
     } else {
         if (!socketlibSocket) {
@@ -345,7 +421,7 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id) {
         }
         // A single request is a batch of one: same markers, same approval dialog.
         const batch = createSpawnBatch({ sceneId });
-        batch.add(payload);
+        batch.add(payload, extras);
         const result = await batch.finish();
         return result?.tokens ?? [];
     }

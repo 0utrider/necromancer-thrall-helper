@@ -21,6 +21,7 @@
 **Permissions and player summons**
 * File browser: players need the core "Use File Browser" permission to see the file-picker buttons for thrall art. Without it they can paste a path or URL instead, and wildcard art still works. On load, the GM gets a notice listing necromancer players who lack it, with one-click options to grant it to the Player role, make a player Trusted, or hide the notice. Granting it lets those players browse the server's data folders, and Trusted Player also grants other core permissions.
 * Approval: when a player summons several thralls, they place them all (numbered markers) and the GM gets ONE approval dialog listing each spot. The GM can untick any thrall and approve the rest. Esc or right-click undoes the last placement and Enter sends early.
+* Inevitable Return: the GM decides what happens to the corpse token the thrall rose from, Keep (default) or Hide. For a player's summon the choice is a row in the GM's approval dialog and only applies if the spawn is approved. GM-initiated summons get a small prompt after the thrall appears, with an optional "Remember for this session". Hidden corpses can't be looted by players (Lootable NPCs).
 
 **Token art**
 * Wildcard art: any image path can be a pattern such as `path/to/art/thrall-*.webp`; one matching file is picked at random each time a thrall is summoned.
