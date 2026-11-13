@@ -1,7 +1,28 @@
-import { applyArtFallback } from "./thrall-manager.js";
+import { applyArtFallback, resolvePendingWildcard } from "./thrall-manager.js";
 import { notify, notifyForce } from "./notify.js";
 
 let socketlibSocket = undefined;
+
+/** Draw the purple placement highlight on the token layer. Returns the Graphics, or null. */
+function drawSpawnMarker(x, y) {
+    if (!canvas.ready || !canvas.tokens) return null;
+    const gridSize = canvas.grid.size;
+    const marker = new PIXI.Graphics();
+    marker.beginFill(0x990099, 0.4);
+    marker.lineStyle(3, 0xff00ff, 0.9);
+    marker.drawRect(0, 0, gridSize, gridSize);
+    marker.endFill();
+    marker.position.set(x, y);
+    marker.zIndex = 2000;
+    canvas.tokens.addChild(marker);
+    return marker;
+}
+
+function clearSpawnMarker(marker) {
+    if (!marker || marker.destroyed) return;
+    marker.parent?.removeChild(marker);
+    marker.destroy();
+}
 
 async function requestSpawn(payload, sceneId) {
     const scene = game.scenes.get(sceneId) || canvas.scene || game.scenes.active;
@@ -20,15 +41,7 @@ async function requestSpawn(payload, sceneId) {
             canvas.ping({ x: payload.x, y: payload.y });
         }
 
-        const gridSize = canvas.grid.size;
-        highlight = new PIXI.Graphics();
-        highlight.beginFill(0x990099, 0.4); 
-        highlight.lineStyle(3, 0xff00ff, 0.9);
-        highlight.drawRect(0, 0, gridSize, gridSize);
-        highlight.endFill();
-        highlight.position.set(payload.x, payload.y);
-        highlight.zIndex = 2000;
-        canvas.tokens.addChild(highlight);
+        highlight = drawSpawnMarker(payload.x, payload.y);
     }
 
     const masterId = payload.flags?.["necromancer-thrall-helper"]?.masterId;
@@ -54,7 +67,7 @@ async function requestSpawn(payload, sceneId) {
         }
     }
 
-    if (highlight) highlight.destroy();
+    clearSpawnMarker(highlight);
 
     if (!confirm) {
         console.log("Necromancer Thrall Helper | GM denied the spawn request.");
@@ -70,6 +83,7 @@ async function requestSpawn(payload, sceneId) {
         hidden: false
     });
 
+    await resolvePendingWildcard(spawnData);
     applyArtFallback(spawnData);
     const createdTokens = await scene.createEmbeddedDocuments("Token", [spawnData]);
     
@@ -131,6 +145,7 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id) {
             sort: maxSort + 100, 
             hidden: false 
         });
+        await resolvePendingWildcard(spawnData);
         applyArtFallback(spawnData);
         const createdTokens = await scene.createEmbeddedDocuments("Token", [spawnData]);
         
@@ -148,7 +163,13 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id) {
             notifyForce("error", "Socketlib connection not established.");
             return;
         }
-        return await socketlibSocket.executeAsGM("requestSpawn", payload, sceneId);
+        // Show the placement while the GM decides; approve, deny and timeout all clear it.
+        const marker = canvas.scene?.id === sceneId ? drawSpawnMarker(payload.x, payload.y) : null;
+        try {
+            return await socketlibSocket.executeAsGM("requestSpawn", payload, sceneId);
+        } finally {
+            clearSpawnMarker(marker);
+        }
     }
 }
 
@@ -176,4 +197,4 @@ export async function executeHazard(regionData, drawingData, sceneId = canvas.sc
         }
         return await socketlibSocket.executeAsGM("createHazardAsGM", regionData, drawingData, sceneId);
     }
-}
+}

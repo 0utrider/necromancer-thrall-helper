@@ -68,6 +68,8 @@ export function isWildcardPath(path) {
  */
 export async function listWildcardMatches(pattern) {
     if (!isWildcardPath(pattern)) return [];
+    // Expected for players without "Use File Browser": the GM resolves the pattern instead.
+    if (!canBrowseFiles()) return [];
     const FP = foundry.applications?.apps?.FilePicker?.implementation ?? globalThis.FilePicker;
     try {
         const result = await FP.browse("data", pattern, { wildcard: true });
@@ -233,8 +235,44 @@ function artModuleId(path) {
 
 /** True if the path lives in another module that isn't active (e.g. a purchased token pack). */
 export function isArtMissing(path) {
+    if (isWildcardPath(path)) return false; // a pattern, not a file: judged once resolved
     const id = artModuleId(path);
     return !!id && !game.modules.get(id)?.active;
+}
+
+/** True if this user may browse files (GMs always can), so wildcard patterns can be listed locally. */
+export function canBrowseFiles() {
+    return !!game.user?.isGM || !!game.user?.can("FILES_BROWSE");
+}
+
+/**
+ * Resolve a token payload's wildcard art, portrait and ring subject to concrete files, in place.
+ * `extras` holds the raw portrait / ring subject patterns.
+ */
+export async function resolveWildcardArt(tokenData, extras = {}) {
+    const wildcardSrc = tokenData.texture?.src;
+    const pair = await resolveImageSet(wildcardSrc, extras);
+    tokenData.texture.src = pair.art;
+    // Decided on the resolved files: a wildcard can pick a webp on one spawn and a webm on the next.
+    applyRingArt(tokenData, pair, wildcardSrc);
+    if (pair.portrait) {
+        foundry.utils.setProperty(tokenData, "flags.necromancer-thrall-helper.portrait", pair.portrait);
+    }
+    return tokenData;
+}
+
+/**
+ * GM side of a spawn request: if a player without file-browser permission sent raw wildcard
+ * paths, resolve them here, then drop the flag.
+ */
+export async function resolvePendingWildcard(payload) {
+    const flags = payload.flags?.["necromancer-thrall-helper"];
+    const pending = flags?.pendingWildcard;
+    if (!pending) return payload;
+    delete flags.pendingWildcard;
+    if (payload.texture && pending.art) payload.texture.src = pending.art;
+    await resolveWildcardArt(payload, { portrait: pending.portrait, ringSubject: pending.ringSubject });
+    return payload;
 }
 
 /**
@@ -537,13 +575,15 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     }
 }
 // --- WILDCARD IMAGES: resolve `thrall-*.webp` to one concrete file per spawn ---
-const wildcardSrc = tokenData.texture?.src;
-const pair = await resolveImageSet(wildcardSrc, { portrait: portraitPath, ringSubject: ringSubjectPath });
-tokenData.texture.src = pair.art;
-// Decided on the resolved files: a wildcard can pick a webp on one spawn and a webm on the next.
-applyRingArt(tokenData, pair, wildcardSrc);
-if (pair.portrait) {
-    foundry.utils.setProperty(tokenData, "flags.necromancer-thrall-helper.portrait", pair.portrait);
+if (canBrowseFiles()) {
+    await resolveWildcardArt(tokenData, { portrait: portraitPath, ringSubject: ringSubjectPath });
+} else if ([tokenData.texture?.src, portraitPath, ringSubjectPath].some(isWildcardPath)) {
+    // No file-browser permission: the GM resolves the wildcards when approving the spawn.
+    foundry.utils.setProperty(tokenData, "flags.necromancer-thrall-helper.pendingWildcard", {
+        art: tokenData.texture?.src ?? null,
+        portrait: portraitPath ?? null,
+        ringSubject: ringSubjectPath ?? null
+    });
 }
 
 // --- BONE FASCINATION: NIMBLE THRALLS ---

@@ -3484,7 +3484,18 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 video: "Dynamic token rings don't support animated art. Set a Ring Subject image to use the ring.",
                                 mixed: "Ring is skipped automatically for any video file selected (unless a Ring Subject is set)."
                             }[kind] ?? cutout;
-                            box.prop("disabled", kind === "video").attr("title", cutout);
+                            if (kind === "video") {
+                                // Remember the preference once, then show the box as off and locked.
+                                if (box.data("savedRing") === undefined) box.data("savedRing", box.is(":checked"));
+                                box.prop("checked", false).prop("disabled", true);
+                            } else {
+                                box.prop("disabled", false);
+                                if (box.data("savedRing") !== undefined) {
+                                    box.prop("checked", box.data("savedRing"));
+                                    box.removeData("savedRing");
+                                }
+                            }
+                            box.attr("title", cutout);
                             dialogHtml.find(`#${key}-ring-hint`).text(text);
                         };
                         for (const key of Object.keys(configKeys)) {
@@ -3527,7 +3538,12 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 let updates = {};
                                 for (const [key, map] of Object.entries(configKeys)) {
                                     updates[`flags.necromancer-thrall-helper.${map.img}`] = dialogHtml.find(`#${key}-img-path`).val();
-                                    updates[`flags.necromancer-thrall-helper.${map.ring}`] = dialogHtml.find(`#${key}-ring-enabled`).is(":checked");
+                                    const ringBox = dialogHtml.find(`#${key}-ring-enabled`);
+                                    // A disabled box (video art) shows unchecked; keep the user's real preference.
+                                    updates[`flags.necromancer-thrall-helper.${map.ring}`] =
+                                        ringBox.is(":disabled") && ringBox.data("savedRing") !== undefined
+                                            ? ringBox.data("savedRing")
+                                            : ringBox.is(":checked");
                                     updates[`flags.necromancer-thrall-helper.${map.scale}`] = parseFloat(dialogHtml.find(`#${key}-img-scale`).val());
                                     updates[`flags.necromancer-thrall-helper.${map.portrait}`] = dialogHtml.find(`#${key}-portrait-path`).val().trim();
                                     updates[`flags.necromancer-thrall-helper.${map.ringSubject}`] = dialogHtml.find(`#${key}-subject-path`).val().trim();
