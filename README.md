@@ -23,6 +23,12 @@
 * Approval: when a player summons several thralls, they place them all (numbered markers) and the GM gets ONE approval dialog listing each spot. The GM can untick any thrall and approve the rest. Esc or right-click undoes the last placement and Enter sends early.
 * Inevitable Return: the GM decides what happens to the corpse token the thrall rose from, Keep (default) or Hide. For a player's summon the choice is a row in the GM's approval dialog and only applies if the spawn is approved. GM-initiated summons get a small prompt after the thrall appears, with an optional "Remember for this session". Hidden corpses can't be looted by players (Lootable NPCs).
 
+**Bloody Tendrils zone**
+* Each tendril carries an aura effect ("Effect: Bloody Tendril Zone") showing the danger zone; it moves with the token. Saves and damage come from a hidden region that follows the tendril, and exist only for tendrils the GM approved. Esc or right-click undoes the last tendril placed, and Enter sends early.
+* Visibility follows PF2e's aura rules: the zone is visible when the scene has Token Vision on, during an encounter, or when a tendril is selected or hovered (hold Alt to show all). Saves and damage work either way.
+* Zone Appearance (Default Thrall Look, Bloody Tendril): Outline (default, a calm red outline), Outrider: Dramatis (a random tile per tendril from the 0utrider/dramatis repo, picked by your Grim Fascination: Blood, Bone, Flesh or Spirit; otherwise the neutral template set), or Custom file(s) (a path or a local wildcard). Opacity defaults to 0.30. If a tile can't load, the outline is used instead.
+* Thralls and tendrils spawn with the party alliance so players can see their auras and PF2e treats them as allies.
+
 **Token art**
 * Wildcard art: any image path can be a pattern such as `path/to/art/thrall-*.webp`; one matching file is picked at random each time a thrall is summoned.
   Wildcard art works for every player, including those without file-browser permission: the GM's client resolves the pattern when approving the summon. On older versions, give the Player role "Use File Browser" in Configure Permissions.

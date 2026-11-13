@@ -1,4 +1,5 @@
-import { applyArtFallback, resolvePendingWildcard } from "./thrall-manager.js";
+import { applyArtFallback, applyPartyAlliance, resolvePendingWildcard } from "./thrall-manager.js";
+import { finalizePendingZone } from "./tendril-zone.js";
 import { notify, notifyForce } from "./notify.js";
 
 let socketlibSocket = undefined;
@@ -119,7 +120,7 @@ export function createSpawnBatch({ sceneId = canvas.scene?.id } = {}) {
             const marker = canvas.scene?.id === sceneId
                 ? drawSpawnMarker(payload.x, payload.y, items.length + 1)
                 : null;
-            items.push({ payload, marker, corpse: extras.corpse ?? null });
+            items.push({ payload, marker, corpse: extras.corpse ?? null, region: extras.region ?? null });
             return items.length;
         },
 
@@ -154,7 +155,7 @@ export function createSpawnBatch({ sceneId = canvas.scene?.id } = {}) {
             const request = {
                 sceneId,
                 necroId,
-                items: items.map((it, i) => ({ index: i + 1, payload: it.payload, corpse: it.corpse }))
+                items: items.map((it, i) => ({ index: i + 1, payload: it.payload, corpse: it.corpse, region: it.region }))
             };
             try {
                 const result = await socketlibSocket.executeAsGM("requestSpawnBatch", request);
@@ -250,10 +251,18 @@ async function requestSpawnBatch({ sceneId, necroId, items = [] } = {}) {
                 hidden: false
             });
             await resolvePendingWildcard(data);
+            await finalizePendingZone(data);
+            applyPartyAlliance(data);
             applyArtFallback(data);
             spawnData.push(data);
         }
         const created = await scene.createEmbeddedDocuments("Token", spawnData);
+
+        // Hazard regions (tendril saves) exist only for spawns that were approved and created.
+        if (created?.length) {
+            const regions = approvedItems.map(i => i.region).filter(Boolean);
+            if (regions.length) await scene.createEmbeddedDocuments("Region", regions);
+        }
 
         // Corpses are only touched for spawns that were actually approved and created.
         if (created?.length) {
@@ -401,6 +410,8 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id, extras =
             hidden: false 
         });
         await resolvePendingWildcard(spawnData);
+        await finalizePendingZone(spawnData);
+        applyPartyAlliance(spawnData);
         applyArtFallback(spawnData);
         const createdTokens = await scene.createEmbeddedDocuments("Token", [spawnData]);
         
@@ -412,6 +423,7 @@ export async function executeSpawn(payload, sceneId = canvas.scene?.id, extras =
                 }
             }, 100);
         }
+        if (createdTokens?.length && extras.region) await scene.createEmbeddedDocuments("Region", [extras.region]);
         if (createdTokens?.length && extras.corpse) promptCorpseFate(extras.corpse).catch(err => console.error(err));
         return createdTokens;
     } else {

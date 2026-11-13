@@ -1,7 +1,8 @@
-import { getFeatureChoices, getFatalMethodName, prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, isVideoPath, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
+import { getGrantedSlugs, getFatalMethodName, prepareThrallPayload, getThrallPresets, resolveImageSet, applyRingArt, repairActorArt, tokenPortrait, isVideoPath, artKind, defaultThrallLabel, BUNDLED_THRALL } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeSpawn, createSpawnBatch, executeDelete, executeHazard } from "../system/socket.js";
 import { notify, notifyForce, placementHint } from "../system/notify.js";
+import { buildTendrilEffect, noteZoneVisibility, getZoneConfig, describeDramatisStyle } from "../system/tendril-zone.js";
 import { effectColor, effectColorNum, ownerColor, zoneBorderColor, syncAllParticleColors, EFFECT_COLOR_KEYS } from "../system/effect-colors.js";
 
 
@@ -562,11 +563,7 @@ export function canThrallDealVitality(actor) {
  */
 export function getFascinations(actor) {
     if (!actor) return [];
-    const picks = [
-        ...getFeatureChoices(actor, "grim-fascination"),
-        ...getFeatureChoices(actor, "widespread-fascination")
-    ];
-    return [...new Set(picks.flatMap(p => [p.slug, p.name]).filter(Boolean).map(v => v.toLowerCase()))];
+    return [...new Set([...getGrantedSlugs(actor, "grim-fascination"), ...getGrantedSlugs(actor, "widespread-fascination")])];
 }
 Hooks.on("hoverToken", (token, hovered) => {
     if (!token?.id) return;
@@ -3418,6 +3415,33 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     <button type="button" id="use-bundled-art-btn" data-tooltip="Fill the fields above with the bundled art"><i class="fas fa-skull"></i> Use bundled art</button>
                 `;
 
+                // Bloody Tendril only: how the danger-zone aura looks.
+                const zoneCfg = getZoneConfig(actor);
+                const zoneModes = { outline: "Outline", dramatis: "Outrider: Dramatis", custom: "Custom file(s)" };
+                const zoneControls = `
+                    <hr>
+                    <h4>Zone Appearance</h4>
+                    <div class="form-group">
+                        <label>Zone style</label>
+                        <select id="tendril-zone-mode">${Object.entries(zoneModes).map(([v, l]) => `<option value="${v}" ${v === zoneCfg.mode ? "selected" : ""}>${l}</option>`).join("")}</select>
+                    </div>
+                    <small class="tz-dramatis">${foundry.utils.escapeHTML(describeDramatisStyle(actor))}</small>
+                    <div class="form-group tz-custom">
+                        <label>File(s)</label>
+                        <input type="text" id="tendril-zone-path" value="${foundry.utils.escapeHTML(zoneCfg.customPath)}" placeholder="path/zone.webp or wildcard: path/zone-*.webp">
+                        <button type="button" class="img-picker-btn" data-target="tendril-zone-path" data-type="imagevideo"><i class="fas fa-file-import"></i></button>
+                    </div>
+                    <small class="tz-custom">Wildcards (*) work for files on this server, not remote URLs.</small>
+                    <div class="form-group">
+                        <label>Opacity</label>
+                        <div class="scale-wrap">
+                            <input type="range" class="scale-slider" id="tendril-zone-alpha" data-val-target="tendril-zone-alpha-val" min="0.05" max="1" step="0.05" value="${zoneCfg.alpha}">
+                            <input type="number" min="0.05" max="1" step="0.05" value="${zoneCfg.alpha}" id="tendril-zone-alpha-val" class="scale-num" data-slider="tendril-zone-alpha" title="Type an exact value">
+                        </div>
+                    </div>
+                    <small id="tendril-zone-hint"></small>
+                `;
+
                 let optionsHtml = "";
                 let groupsHtml = "";
 
@@ -3466,6 +3490,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                 <input type="checkbox" id="${key}-ring-link" ${c.ringScale === undefined ? "checked" : ""}>
                             </div>
                             ${key === "thrall" ? bundledControls : ""}
+                            ${key === "tendril" ? zoneControls : ""}
                         </div>
                     `;
                 }
@@ -3550,6 +3575,21 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                             syncRingHint(key);
                         }
 
+                        // Zone style: show only the fields that apply, with a hint per mode.
+                        const zoneHints = {
+                            outline: "Calm red outline; readable on light and dark maps.",
+                            dramatis: "Random tile per tendril from 0utrider/dramatis. Outline hidden.",
+                            custom: "One file per tendril (wildcard picks randomly). Outline hidden."
+                        };
+                        const syncZoneMode = () => {
+                            const mode = dialogHtml.find("#tendril-zone-mode").val();
+                            dialogHtml.find(".tz-dramatis").toggle(mode === "dramatis");
+                            dialogHtml.find(".tz-custom").toggle(mode === "custom");
+                            dialogHtml.find("#tendril-zone-hint").text(zoneHints[mode]);
+                        };
+                        dialogHtml.find("#tendril-zone-mode").on("change", syncZoneMode);
+                        syncZoneMode();
+
                         // Fill the Base Thrall fields with the bundled art; save as usual.
                         dialogHtml.find("#use-bundled-art-btn").on("click", (evt) => {
                             evt.preventDefault();
@@ -3600,6 +3640,12 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                                         updates[`flags.necromancer-thrall-helper.${map.ringScale}`] = parseFloat(dialogHtml.find(`#${key}-ring-scale`).val());
                                     }
                                 }
+                                const zoneAlpha = parseFloat(dialogHtml.find("#tendril-zone-alpha").val());
+                                updates["flags.necromancer-thrall-helper.tendrilZone"] = {
+                                    mode: dialogHtml.find("#tendril-zone-mode").val(),
+                                    customPath: dialogHtml.find("#tendril-zone-path").val().trim(),
+                                    alpha: Number.isFinite(zoneAlpha) ? Math.min(1, Math.max(0.05, zoneAlpha)) : 0.3
+                                };
                                 updates["flags.necromancer-thrall-helper.useBundledDefault"] = dialogHtml.find("#use-bundled-default").is(":checked");
                                 await actor.update(updates);
                                 notify("info", "Summon configurations updated successfully.");
@@ -8883,8 +8929,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 const gridSize = canvas.grid.size;
                 const ghost = new PIXI.Graphics();
                 // Preview of the aura the tendril will carry (same colours as its Aura effect), then the token itself.
-                ghost.beginFill(0x880000, 0.25);
-                ghost.lineStyle(2, 0x880000, 0.8);
+                const zoneAlpha = getZoneConfig(actor).alpha;
+                ghost.beginFill(0xc0392b, zoneAlpha / 3);
+                ghost.lineStyle(2, 0xc0392b, Math.max(0.4, zoneAlpha));
                 ghost.drawCircle(gridSize/2, gridSize/2, gridSize * 2.5);
                 ghost.endFill();
                 ghost.beginFill(0x990000, 0.4);
@@ -8925,12 +8972,20 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         return;
                     }
                     if (event.data.button === 2) {
+                        if (batch.undo()) {
+                            currentSpawnIndex--;
+                            placementHint(`Place Tendril ${currentSpawnIndex + 1} of ${count}. Right-click or Esc undoes the last one; Enter sends early.`);
+                            canvas.stage.once("pointerdown", interactionHandler);
+                            return;
+                        }
+                        batch.cancel();
                         if (currentSpawnIndex === 0) {
                             await actor.update({ "system.resources.focus.value": currentFocus });
+                            notify("info", "Conjuration cancelled.");
+                        } else {
+                            notify("info", `Placed ${currentSpawnIndex} tendril(s).`);
                         }
-                        notify("info", "Conjuration cancelled.");
                         cleanUp();
-                        batch.finish();
                         return;
                     }
                     const position = event.data.getLocalPosition(canvas.app.stage);
@@ -8970,31 +9025,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     // PF2e measures auras from the token's edge: 2 squares past it matches the 2.5-square circle.
                     const auraFeet = 2 * canvas.scene.grid.distance;
                     finalPayload.delta = finalPayload.delta || {};
-                    finalPayload.delta.items = [...(finalPayload.delta.items || []), {
-                        name: "Effect: Bloody Tendril Zone",
-                        type: "effect",
-                        img: "icons/skills/wounds/blood-spurt-spray-red.webp",
-                        system: {
-                            slug: "bloody-tendril-zone",
-                            tokenIcon: { show: false },
-                            description: { value: "<p>Creatures that end their turn in this aura must attempt the Bloody Tendrils save.</p>" },
-                            duration: { value: -1, unit: "unlimited" },
-                            rules: [{
-                                key: "Aura",
-                                slug: "bloody-tendril-zone",
-                                radius: auraFeet,
-                                traits: [],
-                                effects: [],
-                                appearance: {
-                                    border: { color: "#880000", alpha: 0.8 },
-                                    highlight: { color: "#880000", alpha: 0.2 }
-                                }
-                            }]
-                        }
-                    }];
+                    const { effect: zoneEffect, pending: zonePending } = await buildTendrilEffect(actor, auraFeet);
+                    finalPayload.delta.items = [...(finalPayload.delta.items || []), zoneEffect];
+                    if (zonePending) foundry.utils.setProperty(finalPayload, "flags.necromancer-thrall-helper.pendingZone", zonePending);
 
                     currentSpawnIndex++;
-                    batch.add(finalPayload);
 
                     const regionData = {
                         name: `Bloody Tendril Hazard`,
@@ -9031,10 +9066,11 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                         }
                     };
                     
-                    await executeHazard(regionData, null);
+                    // The save region is created with the token, only if the spawn is approved.
+                    await batch.add(finalPayload, { region: regionData });
 
                     if (currentSpawnIndex < count) {
-                        placementHint(`Place Tendril ${currentSpawnIndex + 1}.`);
+                        placementHint(`Place Tendril ${currentSpawnIndex + 1} of ${count}. Right-click or Esc undoes the last one; Enter sends early.`);
                         canvas.stage.once("pointerdown", interactionHandler);
                     } else {
                         cleanUp();
@@ -9043,6 +9079,12 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                     }
                 };
 
+                batch.bindKeys({
+                    onUndo: () => { currentSpawnIndex--; placementHint(`Place Tendril ${currentSpawnIndex + 1} of ${count}. Right-click or Esc undoes the last one; Enter sends early.`); },
+                    onCancel: () => { canvas.stage.off("pointerdown", interactionHandler); if (currentSpawnIndex === 0) actor.update({ "system.resources.focus.value": currentFocus }); cleanUp(); },
+                    onFinish: () => { canvas.stage.off("pointerdown", interactionHandler); cleanUp(); }
+                });
+                noteZoneVisibility();
                 canvas.stage.once("pointerdown", interactionHandler);
             });
         }

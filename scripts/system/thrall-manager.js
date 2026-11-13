@@ -266,6 +266,27 @@ export function getFeatureChoices(actor, featureSlug) {
     return out;
 }
 
+/** Slugs granted by a class feature, e.g. getGrantedSlugs(actor, "grim-fascination") -> ["spirit"]. */
+export function getGrantedSlugs(actor, featureSlug) {
+    return getFeatureChoices(actor, featureSlug).map(c => c.slug).filter(Boolean).map(s => s.toLowerCase());
+}
+
+/**
+ * Module-spawned allies (anything with a masterId) join the party alliance: PF2e only draws auras
+ * for players, and counts flanking and ally/enemy targeting, from `system.details.alliance`.
+ * Unlinked tokens carry it on their actor delta. A source actor with a deliberately different
+ * alliance (not the NPC default "opposition") keeps it. Runs on the GM side of every spawn.
+ */
+export function applyPartyAlliance(payload) {
+    if (!payload?.flags?.["necromancer-thrall-helper"]?.masterId) return payload;
+    const source = payload.actorId ? game.actors.get(payload.actorId) : null;
+    const own = source?.system?.details?.alliance;
+    if (own && own !== "opposition") return payload;
+    if (payload.actorLink) return payload;
+    foundry.utils.setProperty(payload, "delta.system.details.alliance", "party");
+    return payload;
+}
+
 /** Display name of the necromancer's Fatal Method (e.g. "Puppeteer"), or null. */
 export function getFatalMethodName(actor) {
     return getFeatureChoices(actor, "fatal-method")[0]?.name ?? null;
@@ -618,7 +639,7 @@ if (canBrowseFiles()) {
 }
 
 // --- BONE FASCINATION: NIMBLE THRALLS ---
-const hasBoneFascination = necroActor.items.some(i => i.slug === "bone" || i.name === "Bone");
+const hasBoneFascination = necroActor.items.some(i => i.slug === "bone" || i.name === "Bone") || getGrantedSlugs(necroActor, "grim-fascination").includes("bone");
     
 if (hasBoneFascination) {
     tokenData.delta = tokenData.delta || {};
