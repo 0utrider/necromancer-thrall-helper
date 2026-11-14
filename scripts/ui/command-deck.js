@@ -12,7 +12,9 @@ import {
     canThrallDealVitality,
     getFascinations,
     getTokenDistance,
-    getActorThrallTokens
+    getActorThrallTokens,
+    dismissAllThrallsForActor,
+    dismissAllEffectsForActor
 } from "../spells/spell-helpers.js";
 
 export {
@@ -221,6 +223,10 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
         const activeNightmare = activeThralls.some(t => t.name.includes("Recurring Nightmare"));
         const activeStorms = canvas.scene?.regions?.filter(r => r.getFlag("necromancer-thrall-helper", "stormRegionId")) || [];
         const activeGores = canvas.scene?.regions?.filter(r => r.getFlag("necromancer-thrall-helper", "goreRegionId")) || [];
+        const activeHordes = canvas.scene?.tokens?.filter(t =>
+            t.getFlag("necromancer-thrall-helper", "masterId") === this.necroId &&
+            t.getFlag("necromancer-thrall-helper", "isHordeAnchor")
+        ) || [];
 
         return {
             canBrowse: game.user.hasPermission("FILES_BROWSE"),
@@ -238,7 +244,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             consumeDisabled,
             hasSpiritFascination: actorHasSpiritFascination(actor),
             hasThrallVitality: canThrallDealVitality(actor),
-            hasPuppeteer: actor?.items.some(i => i.name.toLowerCase().includes("puppeteer") || i.system?.slug?.includes("puppeteer")) || false,
+            hasPuppeteer: actor?.items.some(i => i.name.toLowerCase().includes("puppeteer") || i.system?.slug?.includes("puppeteer")) || false|| getFatalMethodName(actor)?.toLowerCase().includes("puppeteer"),
             hasDeathlyScream: hasSpell("Deathly Scream"),
             hasBindHeroicSpirit: hasSpell("Bind Heroic Spirit"),
             hasRecurringNightmare,
@@ -275,7 +281,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             hasCorruptedGround: hasItemSubstring("corrupted ground"),
             isHallowedActive: actor?.items.some(i => i.type === "effect" && i.name === "Effect: Hallowed Earth") || false,
             isCorruptedActive: actor?.items.some(i => i.type === "effect" && i.name === "Effect: Corrupted Ground") || false,
-            activeHordeCount: 0,
+            activeHordeCount: activeHordes.length,
             hasBlossomingGore: hasSpell("Blossoming Gore"),
             activeGoreCount: activeGores.length,
             hasInstantArmy: hasSpell("Instant Army"),
@@ -450,37 +456,35 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             });
         });
 
-        // 8. Dismiss All Thralls footer button
-        if (!html.querySelector(".dismiss-all-btn")) {
-            const tempDiv = document.createElement("div");
-            tempDiv.innerHTML = `<button type="button" class="dismiss-all-btn" style="margin-top: 15px; width: 100%; padding: 6px;">Dismiss All Thralls</button>`;
-            const dismissBtn = tempDiv.firstElementChild;
-            html.appendChild(dismissBtn);
-
-            dismissBtn.addEventListener("click", async (e) => {
+        // 8. Dismiss All Thralls & Dismiss All Effects footer buttons
+        const dismissAllBtn = html.querySelector(".dismiss-all-btn");
+        if (dismissAllBtn) {
+            dismissAllBtn.addEventListener("click", async (e) => {
                 e.preventDefault();
-                dismissBtn.disabled = true;
+                dismissAllBtn.disabled = true;
                 const actor = game.actors.get(this.necroId) || game.user.character;
                 try {
-                    if (game.user.isGM) {
-                        for (const combat of game.combats) {
-                            const badIds = combat.combatants.filter(c => {
-                                if (!c.actor || !c.token || !canvas.scene?.tokens.get(c.tokenId)) return true;
-                                if (actor && c.token.getFlag("necromancer-thrall-helper", "masterId") === actor.id) return true;
-                                return false;
-                            }).map(c => c.id);
-                            if (badIds.length > 0) await combat.deleteEmbeddedDocuments("Combatant", badIds);
-                        }
-                    }
-                    if (canvas.scene && actor) {
-                        const thrallIds = canvas.scene.tokens
-                            .filter(t => t.getFlag("necromancer-thrall-helper", "masterId") === actor.id)
-                            .map(t => t.id);
-                        for (const id of thrallIds) await executeDelete(id);
-                    }
+                    await dismissAllThrallsForActor(actor);
+                    notify("info", "All thralls dismissed.");
                 } finally {
-                    dismissBtn.disabled = false;
-                    this.render(false);
+                    dismissAllBtn.disabled = false;
+                    this.render({ force: false });
+                }
+            });
+        }
+
+        const dismissEffectsBtn = html.querySelector(".dismiss-effects-btn");
+        if (dismissEffectsBtn) {
+            dismissEffectsBtn.addEventListener("click", async (e) => {
+                e.preventDefault();
+                dismissEffectsBtn.disabled = true;
+                const actor = game.actors.get(this.necroId) || game.user.character;
+                try {
+                    await dismissAllEffectsForActor(actor);
+                    notify("info", "All grave effects and hazards dismissed.");
+                } finally {
+                    dismissEffectsBtn.disabled = false;
+                    setTimeout(() => this.render({ force: false }), 150);
                 }
             });
         }

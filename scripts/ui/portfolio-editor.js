@@ -21,7 +21,7 @@ export class PortfolioEditor extends HandlebarsApplicationMixin(ApplicationV2) {
         window: {
             title: "Thrall Portfolio",
             icon: "fas fa-book-dead",
-            resizable: false
+            resizable: true
         }
     };
 

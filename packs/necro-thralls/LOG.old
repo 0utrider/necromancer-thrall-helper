@@ -1,0 +1,13 @@
+2026/11/13-16:13:36.563 92ec Delete type=2 #13
+2026/11/13-16:13:36.563 92ec Delete type=0 #19
+2026/11/13-16:13:36.564 92ec Delete type=2 #25
+2026/11/13-16:13:36.564 92ec Delete type=0 #33
+2026/11/13-16:13:36.564 92ec Delete type=2 #43
+2026/11/13-16:13:36.564 92ec Delete type=2 #47
+2026/11/13-16:13:36.564 92ec Delete type=0 #50
+2026/11/13-16:13:36.564 92ec Delete type=2 #52
+2026/11/13-16:13:36.564 92ec Delete type=3 #217
+2026/11/13-17:22:50.961 3710 Level-0 table #222: started
+2026/11/13-17:22:50.961 3710 Level-0 table #222: 0 bytes OK
+2026/11/13-17:22:50.961 3710 Delete type=0 #220
+2026/11/13-17:22:50.962 3710 Manual compaction at level-0 from '!actors!CN6TMEeEd0Wmvkct' @ 72057594037927935 : 1 .. '!actors.items!uu7VA9eIwi1tUZVs.xPUiZUeZq9q2Bjkw' @ 0 : 0; will stop at (end)

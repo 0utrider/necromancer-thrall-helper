@@ -1,5 +1,8 @@
-2026/11/12-22:04:44.946065 7d23f67bd6c0 Delete type=3 #1
-2026/11/12-22:04:44.951494 7d23f57bb6c0 Level-0 table #5: started
-2026/11/12-22:04:44.956692 7d23f57bb6c0 Level-0 table #5: 1055 bytes OK
-2026/11/12-22:04:44.962901 7d23f57bb6c0 Delete type=0 #3
-2026/11/12-22:04:44.963008 7d23f57bb6c0 Manual compaction at level-0 from '!items!necroBoneFascin0' @ 72057594037927935 : 1 .. '!items!necroTendrilZone' @ 0 : 0; will stop at (end)
+2026/11/13-16:13:36.567 92ec Recovering log #7
+2026/11/13-16:13:36.570 92ec Delete type=0 #7
+2026/11/13-16:13:36.570 92ec Delete type=3 #6
+2026/11/13-17:22:50.963 3710 Level-0 table #11: started
+2026/11/13-17:22:50.963 3710 Level-0 table #11: 0 bytes OK
+2026/11/13-17:22:50.963 3710 Delete type=0 #9
+2026/11/13-17:22:50.966 3710 Manual compaction at level-0 from '!items!necroBoneFascin0' @ 72057594037927935 : 1 .. '!items!necroTendrilZone' @ 0 : 0; will stop at (end)
+2026/11/13-17:22:50.966 3710 Manual compaction at level-1 from '!items!necroBoneFascin0' @ 72057594037927935 : 1 .. '!items!necroTendrilZone' @ 0 : 0; will stop at (end)

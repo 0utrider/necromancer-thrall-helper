@@ -414,3 +414,79 @@ globalThis.NecroThrallHelper.spawnOriginMarker = async (sceneId, drawingData, du
         });
     }
 };
+/**
+ * Dismiss all active thrall tokens on the current scene belonging to this Necromancer.
+ */
+export async function dismissAllThrallsForActor(actor) {
+    if (!actor || !canvas.scene) return 0;
+
+    if (game.user.isGM) {
+        for (const combat of game.combats) {
+            const badIds = combat.combatants.filter(c => {
+                if (!c.actor || !c.token || !canvas.scene?.tokens.get(c.tokenId)) return true;
+                if (c.token.getFlag("necromancer-thrall-helper", "masterId") === actor.id) return true;
+                return false;
+            }).map(c => c.id);
+            if (badIds.length > 0) await combat.deleteEmbeddedDocuments("Combatant", badIds);
+        }
+    }
+
+    const thrallIds = canvas.scene.tokens
+        .filter(t => t.getFlag("necromancer-thrall-helper", "masterId") === actor.id)
+        .map(t => t.id);
+
+    for (const id of thrallIds) {
+        await executeDelete(id);
+    }
+    return thrallIds.length;
+}
+
+/**
+ * Dismiss all active Necromancer regions, drawings, templates, and aura/tracker effects on the scene.
+ */
+export async function dismissAllEffectsForActor(actor) {
+    if (!canvas.scene) return;
+
+    const isNecroGraphic = (doc) => {
+        const flags = doc.flags?.["necromancer-thrall-helper"];
+        if (flags) {
+            if (
+                flags.stormRegionId ||
+                flags.goreRegionId ||
+                flags.isFleshTerrain ||
+                flags.hazardId ||
+                flags.poolId ||
+                flags.isBloodPool ||
+                flags.tendrilTetherId ||
+                flags.anchorId ||
+                flags.hordeId ||
+                flags.source
+            ) return true;
+        }
+        const originActorUuid = doc.flags?.pf2e?.origin?.actor;
+        if (actor && originActorUuid && originActorUuid.endsWith(actor.id)) return true;
+        return false;
+    };
+
+    const regionIds = canvas.scene.regions.filter(isNecroGraphic).map(r => r.id);
+    const drawingIds = canvas.scene.drawings.filter(isNecroGraphic).map(d => d.id);
+    const templateIds = canvas.scene.templates.filter(isNecroGraphic).map(t => t.id);
+
+    if (regionIds.length || drawingIds.length || templateIds.length) {
+        globalThis.NecroThrallHelper.purgeGraphics(canvas.scene.id, { regionIds, drawingIds, templateIds });
+    }
+
+    if (actor) {
+        const effectIdsToRemove = actor.items.filter(i =>
+            i.type === "effect" && (
+                i.getFlag("necromancer-thrall-helper", "isHazardTracker") ||
+                i.name === "Effect: Hallowed Earth" ||
+                i.name === "Effect: Corrupted Ground"
+            )
+        ).map(i => i.id);
+
+        if (effectIdsToRemove.length > 0) {
+            await actor.deleteEmbeddedDocuments("Item", effectIdsToRemove);
+        }
+    }
+}

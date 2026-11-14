@@ -4,7 +4,43 @@ import { setupSocket } from "./system/socket.js";
 import { checkBrowsePermissions } from "./system/permissions-notice.js";
 import { sweepEmptyRegions } from "./system/region-sweep.js";
 import { setupEffectColorHooks } from "./system/effect-colors.js";
-import { notify, notifyForce } from "./system/notify.js";
+import { notifyForce } from "./system/notify.js";
+
+function toggleCommandDeck() {
+    let isNecro = game.user.isGM;
+    const requireNecro = game.settings.get("necromancer-thrall-helper", "requireNecromancer");
+
+    if (!requireNecro) {
+        isNecro = true;
+    } else if (!isNecro && game.user.character) {
+        const actor = game.user.character;
+        isNecro = actor.items.some(i => {
+            const name = i.name.toLowerCase();
+            const slug = i.system?.slug || "";
+            if (name.includes("necro") || slug.includes("necro") || name.includes("reanimator") || name.includes("undead master")) return true;
+            if (name.includes("conjurer of corpses") || i.flags?.["necromancer-thrall-helper"]) return true;
+            return false;
+        });
+    }
+
+    if (!isNecro) {
+        return notifyForce("warn", "You lack the dark blood and discipline required to command the dead.");
+    }
+
+    try {
+        const existing = foundry.applications.instances.get("thrall-command-deck");
+        if (existing?.rendered) {
+            existing.close();
+        } else if (existing) {
+            existing.render({ force: true });
+            existing.bringToFront?.();
+        } else {
+            new ThrallCommandDeck().render(true);
+        }
+    } catch (e) {
+        console.warn("Necromancer Helper | Command Deck failed to open:", e);
+    }
+}
 
 Hooks.once("setup", function () {
     if (!setupSocket()) {
@@ -14,7 +50,19 @@ Hooks.once("setup", function () {
 
 Hooks.once("init", () => {
     console.log("Necromancer Thrall Helper | Initializing the dark arts...");
-    
+
+    game.keybindings.register("necromancer-thrall-helper", "toggleCommandDeck", {
+        name: "Toggle Thrall Command Deck",
+        hint: "Opens or closes the Necromancer Thrall Command Deck.",
+        editable: [],
+        onDown: () => {
+            toggleCommandDeck();
+            return true;
+        },
+        restricted: false,
+        precedence: CONST.KEYBINDING_PRECEDENCE.NORMAL
+    });
+
     game.settings.register("necromancer-thrall-helper", "autoApproveSpawns", {
         name: "Auto-Approve Player Spawns",
         hint: "If enabled, player requests to spawn thralls will bypass the GM approval prompt and spawn immediately.",
@@ -32,6 +80,7 @@ Hooks.once("init", () => {
         type: Boolean,
         default: true
     });
+
     game.settings.register("necromancer-thrall-helper", "pairWildcardFiles", {
         name: "Pair Wildcard Art by Filename",
         hint: "If enabled, when a thrall's token art, portrait and ring subject are all wildcards, files that share the same text in place of the * are used together (thrall-03.webm with portrait-03.webp). If disabled, each image is picked at random on its own.",
@@ -68,6 +117,15 @@ Hooks.once("init", () => {
         default: false
     });
 
+    game.settings.register("necromancer-thrall-helper", "promptEndCombatCleanup", {
+        name: "Prompt Cleanup After Combat",
+        hint: "If enabled, asks you when an encounter ends if you want to dismiss your active thralls and/or grave effects.",
+        scope: "client",
+        config: true,
+        type: Boolean,
+        default: false
+    });
+
     game.settings.register("necromancer-thrall-helper", "notificationLevel", {
         name: "Notification Level",
         hint: "Which pop-up messages to show you. Placement instructions and permission problems always show. Suppressed messages are still written to the console.",
@@ -98,42 +156,9 @@ Hooks.on("getSceneControlButtons", (controls) => {
         name: "thrall-command",
         title: "Open Thrall Command Deck",
         icon: "fas fa-skull",
-        visible: true, 
+        visible: true,
         button: true,
-        onChange: () => {
-            let isNecro = game.user.isGM;
-            const requireNecro = game.settings.get("necromancer-thrall-helper", "requireNecromancer");
-            
-            if (!requireNecro) {
-                isNecro = true;
-            } else if (!isNecro && game.user.character) {
-                const actor = game.user.character;
-                isNecro = actor.items.some(i => {
-                    const name = i.name.toLowerCase();
-                    const slug = i.system?.slug || "";
-                    
-                    if (name.includes("necro") || slug.includes("necro") || name.includes("reanimator") || name.includes("undead master")) return true;
-                    if (name.includes("conjurer of corpses") || i.flags?.["necromancer-thrall-helper"]) return true;
-                    
-                    return false;
-                });
-            }
-
-            if (!isNecro) {
-                return notifyForce("warn", "You lack the dark blood and discipline required to command the dead.");
-            }
-            try {
-                const existing = foundry.applications.instances.get("thrall-command-deck");
-                if (existing) {
-                    existing.render({ force: true });
-                    existing.bringToFront?.();
-                } else {
-                    new ThrallCommandDeck().render(true);
-                }
-            } catch (e) {
-                console.warn("Necromancer Helper | Command Deck failed to open:", e);
-            }
-        }
+        onChange: () => toggleCommandDeck()
     };
 
     let tokenControls;
@@ -142,8 +167,7 @@ Hooks.on("getSceneControlButtons", (controls) => {
         if (tokenControls && Array.isArray(tokenControls.tools)) {
             tokenControls.tools.push(thrallTool);
         }
-    } 
-    else if (controls.tokens || controls.token) {
+    } else if (controls.tokens || controls.token) {
         tokenControls = controls.tokens || controls.token;
         if (Array.isArray(tokenControls.tools)) {
             tokenControls.tools.push(thrallTool);

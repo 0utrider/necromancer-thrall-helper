@@ -1,5 +1,6 @@
 import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
+import { executeDelete } from "../system/socket.js";    
 
 export async function executeAmalgamate({ deck, actor, tokenDoc }) {
     const necroTokens = actor.getActiveTokens();
@@ -81,7 +82,7 @@ export async function executeAmalgamate({ deck, actor, tokenDoc }) {
                         await tokenDoc.actor.createEmbeddedDocuments("Item", [effectData]);
                     }
 
-                    await secondaryToken.document.delete();
+                    await executeDelete(secondaryToken.id);
                     deck.render({ force: false });
 
                     await ChatMessage.create({

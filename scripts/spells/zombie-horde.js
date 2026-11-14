@@ -1,6 +1,6 @@
-import { executeHazard } from "../system/socket.js";
+import { executeDelete, executeHazard } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
-import { getSpellDC, getTokenDistance } from "./spell-helpers.js";
+import { getSpellDC, getTokenDistance, snapTopLeft } from "./spell-helpers.js";
 
 export function bindZombieHordeButtons(deck, html) {
     const sustainBtn = html.querySelector(".sustain-horde-btn");
@@ -10,32 +10,34 @@ export function bindZombieHordeButtons(deck, html) {
             const actor = game.actors.get(deck.necroId) || game.user.character;
             if (!canvas.scene || !actor) return;
 
-            const hordes = canvas.scene.regions.filter(r => r.getFlag("necromancer-thrall-helper", "masterId") === deck.necroId && r.getFlag("necromancer-thrall-helper", "hordeId"));
-            if (hordes.length === 0) return;
+            const anchors = canvas.scene.tokens.filter(t =>
+                t.getFlag("necromancer-thrall-helper", "masterId") === deck.necroId &&
+                t.getFlag("necromancer-thrall-helper", "isHordeAnchor")
+            );
+            if (anchors.length === 0) return notify("warn", "No active Zombie Horde found on the scene.");
 
-            const horde = hordes[0];
-            const shape = horde.shapes[0];
-            if (!shape) return;
-
-            const gridDist = canvas.scene.grid.distance;
-            const gridSize = canvas.scene.grid.size;
+            const anchor = anchors[0];
+            const gridDist = canvas.scene.grid.distance || 5;
+            const gridSize = canvas.scene.grid.size || 100;
+            const currentRadiusFeet = anchor.getFlag("necromancer-thrall-helper", "hordeRadius") || 10;
+            const currentRadiusPixels = (currentRadiusFeet / gridDist) * gridSize;
 
             placementHint("Click the canvas to Sustain and move the Zombie Horde. Right-click to cancel.");
             document.body.style.cursor = "crosshair";
             canvas.app.view.style.cursor = "crosshair";
 
             const ghost = new PIXI.Graphics();
-            ghost.beginFill(0x228b22, 0.4);
+            ghost.beginFill(0x228b22, 0.35);
             ghost.lineStyle(2, 0x006400, 0.8);
-            ghost.drawCircle(0, 0, shape.radiusX);
+            ghost.drawCircle((anchor.width * gridSize) / 2, (anchor.height * gridSize) / 2, currentRadiusPixels);
             ghost.endFill();
             ghost.zIndex = 1000;
             ghost.position.set(-1000, -1000);
             canvas.tokens.addChild(ghost);
 
             const updateGhost = (event) => {
-                const position = event.data.getLocalPosition(canvas.app.stage);
-                const snapped = canvas.grid.getCenterPoint ? canvas.grid.getCenterPoint(position) : position;
+                const pos = event.data.getLocalPosition(canvas.app.stage);
+                const snapped = snapTopLeft(pos);
                 ghost.position.set(snapped.x, snapped.y);
             };
             canvas.stage.on("pointermove", updateGhost);
@@ -53,53 +55,47 @@ export function bindZombieHordeButtons(deck, html) {
                     return;
                 }
                 if (event.data.button === 2) {
-                    notify("info", "Movement cancelled.");
+                    notify("info", "Zombie Horde movement cancelled.");
                     cleanUp();
                     return;
                 }
 
-                const position = event.data.getLocalPosition(canvas.app.stage);
-                const snapped = canvas.grid.getCenterPoint ? canvas.grid.getCenterPoint(position) : position;
-                const targetX = snapped.x;
-                const targetY = snapped.y;
+                const pos = event.data.getLocalPosition(canvas.app.stage);
+                const snapped = snapTopLeft(pos);
+                const destCenterX = snapped.x + (anchor.width * gridSize) / 2;
+                const destCenterY = snapped.y + (anchor.height * gridSize) / 2;
 
-                let newRadius = shape.radiusX;
-                const thralls = canvas.scene.tokens.filter(t => {
-                    if (t.flags?.["necromancer-thrall-helper"]?.masterId !== actor.id) return false;
+                cleanUp();
+
+                let newRadiusFeet = currentRadiusFeet;
+                const consumedThralls = canvas.scene.tokens.filter(t => {
+                    if (t.id === anchor.id) return false;
+                    if (t.getFlag("necromancer-thrall-helper", "isHordeAnchor")) return false;
+                    if (t.getFlag("necromancer-thrall-helper", "masterId") !== actor.id) return false;
                     const tCenterX = t.x + (t.width * gridSize) / 2;
                     const tCenterY = t.y + (t.height * gridSize) / 2;
-                    return Math.hypot(tCenterX - targetX, tCenterY - targetY) <= shape.radiusX;
+                    return Math.hypot(tCenterX - destCenterX, tCenterY - destCenterY) <= currentRadiusPixels;
                 });
 
-                if (thralls.length > 0) {
-                    const incrementPixels = (5 / gridDist) * gridSize;
-                    const maxPixels = horde.getFlag("necromancer-thrall-helper", "maxPixels") || ((30 / gridDist) * gridSize);
-                    newRadius = Math.min(maxPixels, newRadius + (incrementPixels * thralls.length));
-                    for (const t of thralls) await t.delete();
+                if (consumedThralls.length > 0) {
+                    newRadiusFeet = Math.min(30, currentRadiusFeet + (5 * consumedThralls.length));
+                    for (const t of consumedThralls) {
+                        await executeDelete(t.id);
+                    }
 
-                    if (newRadius > shape.radiusX) {
+                    if (newRadiusFeet > currentRadiusFeet) {
                         ChatMessage.create({
                             speaker: ChatMessage.getSpeaker({ actor }),
-                            content: `<p><strong>Zombie Horde Feasts!</strong> By moving over its own thralls, the horde consumes ${thralls.length} of them instantly, swelling its radius to ${Math.round((newRadius / gridSize) * gridDist)} feet!</p>`
+                            content: `<p><strong>Zombie Horde Feasts!</strong> By moving over its own thralls, the horde consumes ${consumedThralls.length} of them instantly, swelling its radius to ${newRadiusFeet} feet!</p>`
                         });
                     }
                 }
 
-                await horde.update({
-                    shapes: [{ type: "ellipse", hole: false, x: targetX, y: targetY, radiusX: newRadius, radiusY: newRadius, rotation: 0 }]
+                await anchor.update({
+                    x: snapped.x,
+                    y: snapped.y,
+                    "flags.necromancer-thrall-helper.hordeRadius": newRadiusFeet
                 });
-
-                const hordeId = horde.getFlag("necromancer-thrall-helper", "hordeId");
-                const drawing = canvas.scene.drawings.find(d => d.getFlag("necromancer-thrall-helper", "hordeId") === hordeId);
-                if (drawing) {
-                    await drawing.update({
-                        shape: { type: "e", width: newRadius * 2, height: newRadius * 2 },
-                        x: targetX - newRadius,
-                        y: targetY - newRadius
-                    });
-                }
-
-                cleanUp();
             };
 
             canvas.stage.once("pointerdown", interactionHandler);
@@ -111,20 +107,25 @@ export function bindZombieHordeButtons(deck, html) {
         dismissHordeBtn.addEventListener("click", async (e) => {
             e.preventDefault();
             if (!canvas.scene) return;
-            const hordes = canvas.scene.regions.filter(r => r.getFlag("necromancer-thrall-helper", "masterId") === deck.necroId && r.getFlag("necromancer-thrall-helper", "hordeId"));
-            for (const h of hordes) {
-                const hId = h.getFlag("necromancer-thrall-helper", "hordeId");
-                const drawing = canvas.scene.drawings.find(d => d.getFlag("necromancer-thrall-helper", "hordeId") === hId);
-                if (drawing) await drawing.delete();
-                await h.delete();
+            const anchors = canvas.scene.tokens.filter(t =>
+                t.getFlag("necromancer-thrall-helper", "masterId") === deck.necroId &&
+                t.getFlag("necromancer-thrall-helper", "isHordeAnchor")
+            );
+            for (const a of anchors) {
+                const rIds = canvas.scene.regions.filter(r => r.getFlag("necromancer-thrall-helper", "anchorId") === a.id).map(r => r.id);
+                const dIds = canvas.scene.drawings.filter(d => d.getFlag("necromancer-thrall-helper", "anchorId") === a.id).map(d => d.id);
+                if (rIds.length || dIds.length) {
+                    globalThis.NecroThrallHelper.purgeGraphics(canvas.scene.id, { regionIds: rIds, drawingIds: dIds });
+                }
+                await executeDelete(a.id);
             }
             notify("info", "Zombie Horde dismissed.");
-            deck.render({ force: false });
+            setTimeout(() => deck.render({ force: false }), 150);
         });
     }
 }
 
-export async function executeZombieHorde({ actor, tokenDoc }) {
+export async function executeZombieHorde({ deck, actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
     if (currentFocus === 0) return notify("warn", "You have no Focus Points to cast Zombie Horde!");
 
@@ -198,7 +199,7 @@ export async function executeZombieHorde({ actor, tokenDoc }) {
                             }
                         }],
                         flags: {
-                            "necromancer-thrall-helper": { anchorId: tokenDoc.id },
+                            "necromancer-thrall-helper": { anchorId: tokenDoc.id, masterId: actor.id },
                             "aoe-easy-resolve": { isAoERegion: true, originItemUuid: zhSpell.uuid, saveDC: exactDC }
                         }
                     };
@@ -214,10 +215,11 @@ export async function executeZombieHorde({ actor, tokenDoc }) {
                         strokeWidth: 3,
                         strokeColor: "#006400",
                         strokeAlpha: 0.8,
-                        flags: { "necromancer-thrall-helper": { anchorId: tokenDoc.id } }
+                        flags: { "necromancer-thrall-helper": { anchorId: tokenDoc.id, masterId: actor.id } }
                     };
 
                     await executeHazard(regionData, drawingData);
+                    deck?.render({ force: false });
 
                     await ChatMessage.create({
                         speaker: ChatMessage.getSpeaker({ actor }),

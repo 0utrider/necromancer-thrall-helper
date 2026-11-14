@@ -6,7 +6,7 @@ import {
     isVideoPath,
     defaultThrallLabel
 } from "./thrall-manager.js";
-import { executeSpawn, createSpawnBatch, executeHazard } from "./socket.js";
+import { executeSpawn, createSpawnBatch, executeDelete, executeHazard } from "./socket.js";
 import { notify, notifyForce, placementHint } from "./notify.js";
 import { effectColor, effectColorNum, zoneBorderColor } from "./effect-colors.js";
 import {
@@ -14,7 +14,9 @@ import {
     getSpellDC,
     getTokenDistance,
     hasConjurerOfCorpses,
-    buildOwnerMap
+    buildOwnerMap,
+    dismissAllEffectsForActor,
+    dismissAllThrallsForActor
 } from "../spells/spell-helpers.js";
 
 globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
@@ -1540,7 +1542,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             const consume = async (sacrificedThrall) => {
                 if (!sacrificedThrall) return;
                 await message.update({ "flags.necromancer-thrall-helper.limbsActivated": true, "flags.necromancer-thrall-helper.sacrificedThrallId": sacrificedThrall.id, [`flags.aoe-easy-resolve.targets.-=${sacrificedThrall.id}`]: null });
-                await sacrificedThrall.document.delete();
+                await executeDelete(sacrificedThrall.id);
                 await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: game.actors.get(casterId) }), flavor: `<strong>Grasping Limbs Activated!</strong>`, content: `<p><b>${sacrificedThrall.name}</b> dissolves into the fleshy wave! Enemies in the cone must now succeed at a Fortitude save or become Immobilized.</p>` });
             };
             if (availableThralls.length === 1) consume(availableThralls[0]);
@@ -1566,7 +1568,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
                     if (token?.actor && (token.actor.system?.details?.alliance === "party" || token.document.disposition === CONST.TOKEN_DISPOSITIONS.FRIENDLY || token.actor.id === casterId || token.document.getFlag("necromancer-thrall-helper", "masterId") === casterId)) updates[`flags.aoe-easy-resolve.targets.${id}.isImmune`] = true;
                 });
                 await message.update(updates);
-                await sacrificedThrall.document.delete();
+                await executeDelete(sacrificedThrall.id);
                 await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: game.actors.get(casterId) }), flavor: `<strong>Bone Armor Activated!</strong>`, content: `<p><b>${sacrificedThrall.name}</b> is consumed by the barrage! Allies in the blast zone take no damage and gain a +1 status bonus to AC until the start of the caster's next turn.</p>` });
             };
             if (availableThralls.length === 1) consume(availableThralls[0]);
@@ -2390,4 +2392,57 @@ Hooks.on("updateChatMessage", async (message, changes, options) => {
             await aoeApi.updateTargetState(message.id, firstTokenId, {});
         }
     }
+});
+Hooks.on("deleteCombat", async () => {
+    if (!canvas.scene) return;
+    if (!game.settings.get("necromancer-thrall-helper", "promptEndCombatCleanup")) return;
+
+    const existingDeck = foundry.applications.instances.get("thrall-command-deck");
+    const actor = (existingDeck?.necroId && game.actors.get(existingDeck.necroId))
+        || game.user.character
+        || canvas.tokens?.controlled?.[0]?.actor;
+    if (!actor || (!game.user.isGM && !actor.isOwner)) return;
+
+    const hasActiveThralls = canvas.scene.tokens.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === actor.id);
+    const hasActiveEffects = canvas.scene.regions.some(r => r.flags?.["necromancer-thrall-helper"])
+        || actor.items.some(i => i.type === "effect" && (i.getFlag("necromancer-thrall-helper", "isHazardTracker") || i.name === "Effect: Hallowed Earth" || i.name === "Effect: Corrupted Ground"));
+
+    if (!hasActiveThralls && !hasActiveEffects) return;
+
+    new Dialog({
+        title: "Encounter Ended: Necromancer Cleanup",
+        content: `<p>Combat has ended. What would you like to do with <b>${actor.name}'s</b> active thralls and grave effects?</p>`,
+        buttons: {
+            both: {
+                icon: '<i class="fas fa-broom"></i>',
+                label: "Dismiss Both",
+                callback: async () => {
+                    await dismissAllThrallsForActor(actor);
+                    await dismissAllEffectsForActor(actor);
+                    existingDeck?.render({ force: false });
+                }
+            },
+            thralls: {
+                icon: '<i class="fas fa-skull"></i>',
+                label: "Thralls Only",
+                callback: async () => {
+                    await dismissAllThrallsForActor(actor);
+                    existingDeck?.render({ force: false });
+                }
+            },
+            effects: {
+                icon: '<i class="fas fa-wind"></i>',
+                label: "Effects Only",
+                callback: async () => {
+                    await dismissAllEffectsForActor(actor);
+                    existingDeck?.render({ force: false });
+                }
+            },
+            keep: {
+                icon: '<i class="fas fa-hand-paper"></i>',
+                label: "Keep All"
+            }
+        },
+        default: "keep"
+    }, { classes: ["dialog", "necro-thrall", "necro-dark"], width: 420 }).render(true);
 });
