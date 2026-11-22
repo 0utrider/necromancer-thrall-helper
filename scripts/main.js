@@ -6,6 +6,7 @@ import { checkBrowsePermissions } from "./system/permissions-notice.js";
 import { sweepEmptyRegions } from "./system/region-sweep.js";
 import { setupEffectColorHooks } from "./system/effect-colors.js";
 import { notifyForce } from "./system/notify.js";
+import { checkIcons } from "./system/icon-check.js";
 
 async function toggleCommandDeck() {
     try {
@@ -148,6 +149,8 @@ Hooks.once("ready", () => {
     console.log("Necromancer Thrall Helper | Binding hooks.");
     setupHooks();
     setupResolveHooks();
+    globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
+    globalThis.NecroThrallHelper.checkIcons = checkIcons; // dev check: await NecroThrallHelper.checkIcons()
     setupEffectColorHooks();
     repairWorldThrallArt().catch(err => console.warn("Necromancer Thrall Helper | Could not repair thrall art:", err));
     sweepEmptyRegions().catch(err => console.warn("Necromancer Thrall Helper | Region sweep failed:", err));

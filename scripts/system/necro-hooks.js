@@ -19,6 +19,7 @@ import {
     getTokenDistance,
     hasConjurerOfCorpses,
     buildOwnerMap,
+    buildNecroSpellData,
     dismissAllEffectsForActor,
     dismissAllThrallsForActor
 } from "../spells/spell-helpers.js";
@@ -2122,7 +2123,7 @@ globalThis.NecroThrallHelper.checkNightmareHaunt = async (nightmareTokenDoc, spe
     };
 
     if (!rnSpell) {
-        const created = await masterActor.createEmbeddedDocuments("Item", [{ name: "Recurring Nightmare", type: "spell", img: "icons/magic/death/undead-ghost-scream-teal.webp", system: spellSystemData }]);
+        const created = await masterActor.createEmbeddedDocuments("Item", [await buildNecroSpellData("Recurring Nightmare", "icons/magic/death/undead-ghost-scream-teal.webp", spellSystemData)]);
         rnSpell = created[0];
     } else {
         await rnSpell.update({ system: spellSystemData });

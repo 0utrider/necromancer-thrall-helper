@@ -314,13 +314,75 @@ export function createRangeIndicator(actor, rangeFeet, fillAlpha = 0.05) {
     return { necroCenter, rangeIndicator };
 }
 
+const SPELL_PACK = "pf2e.spells-srd";
+/** Official PF2e spells by the name the module uses: [pack item id, slug]. Bone Burst is a feat, so it has none. */
+const OFFICIAL_SPELLS = {
+    "Bone Spear": ["4JXxqBXigKECcpTm", "bone-spear"],
+    "Dead Weight": ["4kQMFyRKj5Gv13zl", "dead-weight"],
+    "Blood Infusion": ["tFWa3ouvMC5Zz3P0", "blood-infusion"],
+    "Flesh Tsunami": ["jtACJQc6n9ZaG9kA", "flesh-tsunami"],
+    "Temporary Possession": ["yZpWaJzm7kUjKvlQ", "temporary-possession"],
+    "Calcification": ["L13n9NKvfGLApse1", "calcification"],
+    "Deathly Scream": ["aIPa7Yp4vGeKIKNG", "deathly-scream"],
+    "Necrotic Bomb": ["cg1l2AxBenLU6JFE", "necrotic-bomb"],
+    "Life Tap": ["fgmxDC2PH2TEYGKG", "life-tap"],
+    "Bony Barrage": ["yfaTZv8nCsS4GtrA", "bony-barrage"],
+    "Dread Mosquito Storm": ["Q6cvsLytYffpeN3g", "dread-mosquito-storm"],
+    "Zombie Horde": ["ziujByCygD3MO2CK", "zombie-horde"],
+    "Bloody Tendrils": ["qy5NVKy2A3LwNleW", "bloody-tendrils"],
+    "Recurring Nightmare": ["ecXhGEAX3PYd6FqK", "recurring-nightmare"]
+};
+const officialSpellCache = new Map();
+
+/**
+ * The official PF2e spell as plain item data: looked up by UUID, then by slug (so renames and
+ * translated names don't break it). Null when it can't be found.
+ */
+export async function getOfficialSpellData(name) {
+    const ref = OFFICIAL_SPELLS[name];
+    if (!ref) return null;
+    if (!officialSpellCache.has(name)) {
+        officialSpellCache.set(name, (async () => {
+            const [id, slug] = ref;
+            try {
+                let doc = await fromUuid(`Compendium.${SPELL_PACK}.Item.${id}`);
+                if (!doc) {
+                    const pack = game.packs.get(SPELL_PACK);
+                    const entry = (await pack?.getIndex({ fields: ["system.slug"] }))?.find(e => e.system?.slug === slug);
+                    doc = entry ? await pack.getDocument(entry._id) : null;
+                }
+                if (!doc || doc.type !== "spell") return null;
+                const data = doc.toObject();
+                for (const k of ["_id", "folder", "ownership", "_stats", "sort"]) delete data[k];
+                data._stats = { compendiumSource: doc.uuid };
+                return data;
+            } catch { return null; }
+        })());
+    }
+    const data = await officialSpellCache.get(name);
+    return data ? foundry.utils.deepClone(data) : null;
+}
+
+/**
+ * Item data for a spell the module adds to an actor: a copy of the official PF2e spell (art, traits,
+ * text) with the module's rank, DC and damage applied; an inline stand-in when it can't be found.
+ */
+export async function buildNecroSpellData(name, img, systemData) {
+    const official = await getOfficialSpellData(name);
+    if (!official) return { name, type: "spell", img, system: systemData };
+    for (const key of ["level", "defense", "damage"]) {
+        if (systemData[key] !== undefined) official.system[key] = foundry.utils.deepClone(systemData[key]);
+    }
+    return official;
+}
+
 /**
  * Find or create a Necromancer spell on the actor and apply system data + AoE Easy Resolve flags.
  */
 export async function ensureNecroSpell(actor, { name, img, systemData, aoeFlags = {}, necroFlags = {}, extraUpdates = {} }) {
     let spell = actor.items.find(i => ["spell", "feat", "action"].includes(i.type) && i.name === name);
     if (!spell) {
-        const created = await actor.createEmbeddedDocuments("Item", [{ name, type: "spell", img, system: systemData }]);
+        const created = await actor.createEmbeddedDocuments("Item", [await buildNecroSpellData(name, img, systemData)]);
         spell = created[0];
     } else {
         await spell.update({ system: systemData, ...extraUpdates });

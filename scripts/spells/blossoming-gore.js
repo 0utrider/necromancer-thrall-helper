@@ -69,7 +69,7 @@ export async function executeBlossomingGore({ deck, actor, tokenDoc }) {
                         const created = await actor.createEmbeddedDocuments("Item", [{
                             name: "Blossoming Gore Hazard",
                             type: "spell",
-                            img: "icons/magic/life/heart-cross-plant-green.webp",
+                            img: "icons/magic/unholy/projectiles-blood-salvo-red.webp",
                             system: spellSystemData
                         }]);
                         bgSpell = created[0];

@@ -14,7 +14,7 @@ export async function executeFleshTsunami({ actor, tokenDoc, event }) {
     const exactDC = getSpellDC(actor);
     const tsunamiSpell = await ensureNecroSpell(actor, {
         name: "Flesh Tsunami",
-        img: "icons/magic/water/wave-water-red.webp",
+        img: "icons/magic/unholy/strike-beam-blood-large-red-purple.webp",
         systemData: {
             level: { value: 8 },
             traits: { value: ["necromancer", "manipulate", "concentrate", "focus", "uncommon"] },

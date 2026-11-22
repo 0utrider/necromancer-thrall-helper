@@ -423,7 +423,7 @@ export function getThrallPresets(actor = null) {
 
     return [
         { id: "uncle-arthur", name: "Uncle Arthur", img: "icons/magic/death/undead-ghost-scream-teal.webp", adjectives: STANDARD_ADJECTIVES },
-        { id: "aunt-martha", name: "Aunt Martha", img: "icons/magic/death/undead-skeleton-mage-red.webp", adjectives: STANDARD_ADJECTIVES }
+        { id: "aunt-martha", name: "Aunt Martha", img: "systems/pf2e/icons/ancestries/skeleton.webp", adjectives: STANDARD_ADJECTIVES }
     ];
 }
 

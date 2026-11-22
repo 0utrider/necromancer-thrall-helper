@@ -9,7 +9,7 @@ export async function executeDeadWeight({ actor, tokenDoc }) {
 
     const dwSpell = await ensureNecroSpell(actor, {
         name: "Dead Weight",
-        img: "icons/magic/death/undead-zombie-glowing-green.webp",
+        img: "icons/magic/death/skeleton-worn-skull-tan.webp",
         systemData: {
             level: { value: spellRank },
             traits: { value: ["necromancer", "manipulate", "concentrate", "focus", "uncommon"] },

@@ -8,7 +8,7 @@ export async function executeBloodInfusion({ actor, tokenDoc }) {
 
     const infusionSpell = await ensureNecroSpell(actor, {
         name: "Blood Infusion",
-        img: "icons/magic/water/blood-drop-skull.webp",
+        img: "icons/skills/wounds/blood-cells-vessel-red.webp",
         systemData: {
             level: { value: spellRank },
             traits: { value: ["necromancer", "manipulate", "concentrate", "focus", "uncommon"] },

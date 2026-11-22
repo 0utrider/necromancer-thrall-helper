@@ -10,7 +10,7 @@ export async function executeBoneSpear({ actor, tokenDoc, event }) {
 
     const spearSpell = await ensureNecroSpell(actor, {
         name: "Bone Spear",
-        img: "icons/magic/weapons/projectile-spear-bone.webp",
+        img: "icons/commodities/bones/tooth-spiked-brown.webp",
         systemData: {
             level: { value: spellRank },
             traits: { value: ["necromancer", "manipulate", "concentrate", "focus", "uncommon"] },

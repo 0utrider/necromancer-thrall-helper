@@ -31,7 +31,7 @@ export async function executeTemporaryPossession({ actor, tokenDoc }) {
 
     const tpSpell = await ensureNecroSpell(actor, {
         name: "Temporary Possession",
-        img: "icons/magic/control/control-influence-puppet-purple.webp",
+        img: "icons/magic/unholy/strike-body-explode-disintegrate.webp",
         systemData: {
             level: { value: spellRank },
             traits: { value: ["necromancer", "uncommon", "concentrate", "focus", "incapacitation", "manipulate", "possession"] },

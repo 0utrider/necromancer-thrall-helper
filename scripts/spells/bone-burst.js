@@ -23,7 +23,7 @@ export async function executeBoneBurst({ actor, tokenDoc }) {
     const exactDC = getSpellDC(actor);
     const bbSpell = await ensureNecroSpell(actor, {
         name: "Bone Burst",
-        img: "icons/skills/wounds/bone-broken-splinter-white.webp",
+        img: "icons/skills/wounds/bone-broken-marrow-yellow.webp",
         systemData: {
             level: { value: Math.ceil(necroLevel / 2) },
             traits: { value: ["necromancer", "occult", "concentrate", "focus", "uncommon"] },

@@ -1,6 +1,6 @@
 import { executeDelete, executeHazard } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
-import { getSpellDC, getTokenDistance, snapTopLeft } from "./spell-helpers.js";
+import { getSpellDC, getTokenDistance, snapTopLeft, buildNecroSpellData } from "./spell-helpers.js";
 
 export function bindZombieHordeButtons(deck, html) {
     const sustainBtn = html.querySelector(".sustain-horde-btn");
@@ -150,7 +150,7 @@ export async function executeZombieHorde({ deck, actor, tokenDoc }) {
     };
 
     if (!zhSpell) {
-        const created = await actor.createEmbeddedDocuments("Item", [{ name: "Zombie Horde", type: "spell", img: "icons/magic/death/undead-zombies-horde-green.webp", system: spellSystemData }]);
+        const created = await actor.createEmbeddedDocuments("Item", [await buildNecroSpellData("Zombie Horde", "systems/pf2e/icons/spells/animate-dead.webp", spellSystemData)]);
         zhSpell = created[0];
     } else {
         await zhSpell.update({ system: spellSystemData });
@@ -180,7 +180,7 @@ export async function executeZombieHorde({ deck, actor, tokenDoc }) {
 
                     await tokenDoc.update({
                         name: "Zombie Horde",
-                        "texture.src": "icons/magic/death/undead-zombies-horde-green.webp",
+                        "texture.src": "systems/pf2e/icons/spells/animate-dead.webp",
                         "flags.necromancer-thrall-helper.isHordeAnchor": true,
                         "flags.necromancer-thrall-helper.hordeRadius": 10
                     });
