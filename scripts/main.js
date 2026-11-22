@@ -1,5 +1,6 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
 import { dedupeSceneThrallStrikes } from "./spells/thrall-strike.js";
+import { setupTransientEffectHooks } from "./system/transient-effects.js";
 import { resolveNecromancer, resolveNecromancerOrNotify, setupResolveHooks } from "./system/necro-resolve.js";
 import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
@@ -150,6 +151,7 @@ Hooks.once("ready", () => {
     console.log("Necromancer Thrall Helper | Binding hooks.");
     setupHooks();
     setupResolveHooks();
+    setupTransientEffectHooks();
     globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
     globalThis.NecroThrallHelper.checkIcons = checkIcons; // dev check: await NecroThrallHelper.checkIcons()
     setupEffectColorHooks();

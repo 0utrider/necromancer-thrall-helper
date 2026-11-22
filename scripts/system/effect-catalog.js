@@ -100,10 +100,15 @@ export const NECRO_EFFECTS = {
     thrallCharge: {
         official: `${SPELL_FX}.Wd1fYphfUNpZlgcH`,
         slugs: ["spell-effect-thrall-charge", "thrall-charge"], names: ["Thrall Charge", "Thrall Charge (Kamikaze)", "Spell Effect: Thrall Charge"],
+        hideTokenIcon: true,
         adaptOfficial: (d, ctx) => {
             d.system.level = { value: ctx.spellRank };
-            d.system.duration = { value: 1, unit: "rounds", sustained: false, expiry: "turn-end" };
+            d.system.duration = ctx.duration ?? { value: 1, unit: "rounds", sustained: false, expiry: "turn-end" };
             preselect(d, ctx.isKamikaze ? "yes" : "no");
+            // Dice from other features (Living Graveyard, Perfected Thrall...) on top of the spell's own table.
+            if (ctx.dice && ctx.baseDice && ctx.dice > ctx.baseDice) {
+                d.system.rules.push({ key: "DamageDice", selector: "strike-damage", slug: "thrall-charge-bonus", diceNumber: ctx.dice - ctx.baseDice, dieSize: "d6" });
+            }
         },
         inline: (ctx = {}) => {
             const rules = [{ key: "DamageDice", selector: "strike-damage", diceNumber: ctx.dice ?? 1, dieSize: "d6", slug: "thrall-charge-dice" }];
@@ -111,7 +116,7 @@ export const NECRO_EFFECTS = {
             return {
                 type: "effect", name: ctx.isKamikaze ? "Thrall Charge (Kamikaze)" : "Thrall Charge",
                 img: "icons/magic/death/undead-ghost-strike-white.webp",
-                system: { level: { value: ctx.spellRank ?? 1 }, duration: { value: 1, unit: "rounds", expiry: "turn-end" }, rules }
+                system: { level: { value: ctx.spellRank ?? 1 }, duration: ctx.duration ?? { value: 1, unit: "rounds", expiry: "turn-end" }, rules }
             };
         }
     },
@@ -225,7 +230,11 @@ export const NECRO_EFFECTS = {
         inline: (ctx = {}) => deadEffect("unholy", ctx.damageBonus ?? 1)
     },
     boneArmor: {
-        module: "necroBoneArmor00", slugs: ["effect-bone-armor"], names: ["Effect: Bone Armor"],
+        // Bony Barrage's own armor: +1 status to AC until the start of the caster's next turn.
+        official: `${SPELL_FX}.77AwscdL6dI0ZfnH`,
+        module: "necroBoneArmor00",
+        slugs: ["spell-effect-bony-barrage", "effect-bone-armor"], names: ["Spell Effect: Bony Barrage", "Effect: Bone Armor"],
+        adaptOfficial: (d, ctx) => { if (ctx.spellRank) d.system.level = { value: ctx.spellRank }; },
         inline: () => ({
             name: "Effect: Bone Armor", type: "effect",
             img: "systems/pf2e/icons/spells/armor-of-bones.webp",
@@ -424,6 +433,7 @@ export async function getNecroEffect(key, overrides = {}, ctx = {}) {
     }
 
     for (const k of ["_id", "folder", "ownership", "_stats", "_key", "sort"]) delete data[k];
+    if (entry.hideTokenIcon) data.system.tokenIcon = { show: false };
     if (uuid) data._stats = { compendiumSource: uuid };
     data.type = "effect";
     data = foundry.utils.mergeObject(data, overrides, { inplace: false });

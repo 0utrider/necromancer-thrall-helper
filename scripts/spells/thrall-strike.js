@@ -4,6 +4,7 @@ import { notify } from "../system/notify.js";
 import { canThrallDealVitality, getSpellDC, getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect, findNecroEffects } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { transientFlags, oneStrikeDuration, watchStrikeCleanup, deleteIfExists } from "../system/transient-effects.js";
 
 /** Attack bonus and dice count for a Thrall Strike, from the necromancer's current level. */
 function thrallStrikeStats(actor) {
@@ -58,6 +59,15 @@ export async function ensureThrallStrike(tokenDoc, { damageType, baseDice, attac
     return keep;
 }
 
+/** One Thrall Charge effect on the thrall, official source first; any older one is cleared so they never stack. */
+async function applyChargeEffect(actor, tokenDoc, { spellRank, isKamikaze, dice, chargeDice }) {
+    await deleteIfExists(tokenDoc.actor, findNecroEffects(tokenDoc.actor, "thrallCharge").map(i => i.id));
+    const effectData = await getNecroEffect("thrallCharge", { flags: transientFlags(actor) }, {
+        spellRank, isKamikaze, dice, chargeDice, duration: oneStrikeDuration(actor)
+    });
+    return (await tokenDoc.actor.createEmbeddedDocuments("Item", [effectData])).map(e => e.id);
+}
+
 /** Active GM, on scene load: remove duplicate Thrall Strike items left on thrall tokens by older versions. */
 export async function dedupeSceneThrallStrikes(scene = canvas.scene) {
     if (!game.user.isGM || game.users.activeGM?.isSelf === false || !scene) return;
@@ -109,12 +119,7 @@ export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj,
 
     let addedEffectIds = [];
     if (totalChargeDice > 0) {
-        // The official effect only matches the plain rank-based dice; extra dice from other features use the inline one.
-        const effectData = await getNecroEffect("thrallCharge", {}, {
-            spellRank, isKamikaze, dice: totalChargeDice, skipOfficial: totalChargeDice !== chargeDice
-        });
-        const createdEffects = await tokenDoc.actor.createEmbeddedDocuments("Item", [effectData]);
-        addedEffectIds = createdEffects.map(effect => effect.id);
+        addedEffectIds = await applyChargeEffect(actor, tokenDoc, { spellRank, isKamikaze, dice: totalChargeDice, chargeDice });
     }
 
     const strike = await waitForStrikeAction(tokenDoc.actor, weapon, damageType, variantIndex);
@@ -138,29 +143,10 @@ export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj,
     }
 
     if (addedEffectIds.length > 0 || isKamikaze) {
-        const hookId = Hooks.on("createChatMessage", async (msg) => {
-            if (msg.speaker?.token === tokenDoc.id && msg.flags?.pf2e?.context?.type === "damage-roll") {
-                Hooks.off("createChatMessage", hookId);
-
-                if (addedEffectIds.length > 0 && tokenDoc.actor) {
-                    await tokenDoc.actor.deleteEmbeddedDocuments("Item", addedEffectIds);
-                }
-
-                if (isKamikaze && tokenDoc) {
-                    await executeDelete(tokenDoc.id);
-                }
-            }
+        watchStrikeCleanup({
+            tokenDoc, effectIds: addedEffectIds,
+            onDamage: isKamikaze ? () => executeDelete(tokenDoc.id) : null
         });
-
-        setTimeout(async () => {
-            Hooks.off("createChatMessage", hookId);
-            if (addedEffectIds.length > 0 && tokenDoc?.actor) {
-                const activeBuffs = tokenDoc.actor.items.filter(i => addedEffectIds.includes(i.id)).map(i => i.id);
-                if (activeBuffs.length > 0) {
-                    await tokenDoc.actor.deleteEmbeddedDocuments("Item", activeBuffs);
-                }
-            }
-        }, 120000);
     }
 }
 
@@ -218,22 +204,13 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId
     else if (spellRank >= 2) chargeDice = 2;
 
     const executeConglomerate = async (isKamikaze) => {
-        const staleEffects = findNecroEffects(tokenDoc.actor, "thrallCharge");
-        if (staleEffects.length > 0) {
-            await tokenDoc.actor.deleteEmbeddedDocuments("Item", staleEffects.map(i => i.id));
-        }
-
         const damageType = resolveThrallDamageType(deck, actor, tokenDoc, tokenId);
         const { baseDice, attackMod } = thrallStrikeStats(actor);
         const weapon = await ensureThrallStrike(tokenDoc, { damageType, baseDice, attackMod });
 
-        let addedEffectIds = [];
-        if (chargeDice > 0) {
-            // Conglomerate of Limbs keeps the inline version: its dice come from the module, not the spell's rank table.
-            const effectData = await getNecroEffect("thrallCharge", {}, { spellRank, isKamikaze, dice: chargeDice, skipOfficial: true });
-            const createdEffects = await tokenDoc.actor.createEmbeddedDocuments("Item", [effectData]);
-            addedEffectIds = createdEffects.map(effect => effect.id);
-        }
+        const addedEffectIds = chargeDice > 0
+            ? await applyChargeEffect(actor, tokenDoc, { spellRank, isKamikaze, dice: chargeDice, chargeDice })
+            : [];
 
         const mapPenalty = deck.currentMap !== undefined ? deck.currentMap : 0;
         let variantIndex = 0;
@@ -307,15 +284,12 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId
 
         if (isKamikaze) await tokenDoc.actor.update({ "system.attributes.hp.value": 0 });
 
-        if (addedEffectIds.length > 0 || isKamikaze) {
-            setTimeout(async () => {
-                if (addedEffectIds.length > 0 && tokenDoc?.actor) {
-                    const activeBuffs = tokenDoc.actor.items.filter(i => addedEffectIds.includes(i.id)).map(i => i.id);
-                    if (activeBuffs.length > 0) await tokenDoc.actor.deleteEmbeddedDocuments("Item", activeBuffs);
-                }
-                if (isKamikaze && tokenDoc) await executeDelete(tokenDoc.id);
-            }, 60000);
+        if (addedEffectIds.length > 0) {
+            // All misses: no damage is coming. Otherwise the charge dice go when the damage is rolled.
+            if (hitCount === 0) await deleteIfExists(tokenDoc.actor, addedEffectIds);
+            else watchStrikeCleanup({ tokenDoc, effectIds: addedEffectIds, watchMiss: false, timeoutMs: 60000 });
         }
+        if (isKamikaze) setTimeout(() => { if (tokenDoc?.actor) executeDelete(tokenDoc.id); }, 60000);
 
         if (hitCount === 0) {
             notify("info", "Conglomerate Charge: All strikes missed. No Grab saves needed.");
