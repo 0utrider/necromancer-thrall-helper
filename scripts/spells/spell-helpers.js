@@ -95,6 +95,26 @@ export function hasConjurerOfCorpses(actor) {
 }
 
 /**
+ * Check that the Necromancer's sheet is set up for the deck: a Focus spellcasting entry, spells
+ * in it, and a Focus Pool. Returns a list of problem codes, worst first (empty when all is well).
+ */
+export function checkNecroSpellcasting(actor) {
+    if (!actor) return [];
+    const entries = actor.items.filter(i => i.type === "spellcastingEntry");
+    const focusEntries = entries.filter(e => e.isFocusPool === true || e.system?.prepared?.value === "focus");
+    const problems = [];
+    if (!focusEntries.length) {
+        problems.push("noFocusEntry");
+    } else {
+        const ids = new Set(focusEntries.map(e => e.id));
+        const hasSpells = actor.items.some(i => i.type === "spell" && ids.has(i.system?.location?.value));
+        if (!hasSpells) problems.push("noFocusSpells");
+    }
+    if (!(actor.system?.resources?.focus?.max > 0)) problems.push("noFocusPool");
+    return problems;
+}
+
+/**
  * Return all TokenDocuments on the current scene controlled as thralls by this Necromancer.
  */
 export function getActorThrallTokens(actor, { includeReanimated = false } = {}) {

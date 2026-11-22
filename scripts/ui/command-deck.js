@@ -3,7 +3,7 @@ import { getFatalMethodName, tokenPortrait } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeDelete } from "../system/socket.js";
 import { notify, notifyForce } from "../system/notify.js";
-import { openDefaultLookDialog, openNecroSettingsDialog } from "./deck-dialogs.js";
+import { openDefaultLookDialog, openNecroSettingsDialog, openSpellcastingCheckDialog } from "./deck-dialogs.js";
 import { bindHeaderSpellButtons, THRALL_ACTIONS } from "../spells/index.js";
 import {
     THRALL_DMG_COLORS,
@@ -13,6 +13,7 @@ import {
     getFascinations,
     getTokenDistance,
     getActorThrallTokens,
+    checkNecroSpellcasting,
     dismissAllThrallsForActor,
     dismissAllEffectsForActor
 } from "../spells/spell-helpers.js";
@@ -289,10 +290,26 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
         };
     }
 
+    /** Show the setup reminder if the user owns this Necromancer and hasn't suppressed it. */
+    _checkSpellcasting() {
+        const actor = game.actors.get(this.necroId);
+        if (!actor || actor.getFlag("necromancer-thrall-helper", "suppressSpellcastingCheck")) return;
+        // GMs implicitly own everything; only prompt them for characters they own explicitly.
+        const owns = game.user.isGM ? actor.ownership?.[game.user.id] === CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER : actor.isOwner;
+        if (!owns) return;
+        openSpellcastingCheckDialog(actor, checkNecroSpellcasting(actor));
+    }
+
     /** @override */
     _onRender(context, options) {
         super._onRender(context, options);
         const html = this.element;
+
+        // 0. Spellcasting / Focus Pool reminder, once per deck instance
+        if (!this._spellcastingChecked) {
+            this._spellcastingChecked = true;
+            this._checkSpellcasting();
+        }
 
         // 1. Persist window bounds once per instance
         if (!this._boundsListenerBound) {
