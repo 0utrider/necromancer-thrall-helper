@@ -1,6 +1,7 @@
 import { getGrantedSlugs, resolveImageSet, applyRingArt, tokenPortrait } from "../system/thrall-manager.js";
 import { notify, notifyForce } from "../system/notify.js";
 import { effectColorNum } from "../system/effect-colors.js";
+import { executeDeleteBatch } from "../system/socket.js";
 
 export const THRALL_DMG_COLORS = { spirit: "#0ea5e9", void: "#7e22ce", vitality: "#b58900" };
 
@@ -420,25 +421,9 @@ globalThis.NecroThrallHelper.spawnOriginMarker = async (sceneId, drawingData, du
 export async function dismissAllThrallsForActor(actor) {
     if (!actor || !canvas.scene) return 0;
 
-    if (game.user.isGM) {
-        for (const combat of game.combats) {
-            const badIds = combat.combatants.filter(c => {
-                if (!c.actor || !c.token || !canvas.scene?.tokens.get(c.tokenId)) return true;
-                if (c.token.getFlag("necromancer-thrall-helper", "masterId") === actor.id) return true;
-                return false;
-            }).map(c => c.id);
-            if (badIds.length > 0) await combat.deleteEmbeddedDocuments("Combatant", badIds);
-        }
-    }
-
-    const thrallIds = canvas.scene.tokens
-        .filter(t => t.getFlag("necromancer-thrall-helper", "masterId") === actor.id)
-        .map(t => t.id);
-
-    for (const id of thrallIds) {
-        await executeDelete(id);
-    }
-    return thrallIds.length;
+    // Same set the deck lists, plus reanimated foes (they carry masterId too).
+    const thrallIds = getActorThrallTokens(actor, { includeReanimated: true }).map(t => t.id);
+    return await executeDeleteBatch(thrallIds, canvas.scene.id);
 }
 
 /**

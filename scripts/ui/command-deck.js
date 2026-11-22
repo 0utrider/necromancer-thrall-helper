@@ -466,6 +466,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 try {
                     await dismissAllThrallsForActor(actor);
                     notify("info", "All thralls dismissed.");
+                } catch (err) {
+                    console.error(err);
+                    notify("error", `Dismiss All Thralls failed: ${err?.message ?? err}`);
                 } finally {
                     dismissAllBtn.disabled = false;
                     this.render({ force: false });
@@ -482,6 +485,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 try {
                     await dismissAllEffectsForActor(actor);
                     notify("info", "All grave effects and hazards dismissed.");
+                } catch (err) {
+                    console.error(err);
+                    notify("error", `Dismiss All Effects failed: ${err?.message ?? err}`);
                 } finally {
                     dismissEffectsBtn.disabled = false;
                     setTimeout(() => this.render({ force: false }), 150);

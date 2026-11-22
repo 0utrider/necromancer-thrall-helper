@@ -370,6 +370,24 @@ async function deleteTokenAsGM(tokenId, sceneId) {
     if (tokenDoc) await tokenDoc.delete();
 }
 
+/**
+ * GM side: delete several tokens in one batch and drop their combatants from combats on that scene.
+ * Never touches combats on other scenes.
+ */
+async function deleteTokensAsGM(tokenIds, sceneId) {
+    const scene = game.scenes.get(sceneId) || canvas.scene || game.scenes.active;
+    if (!scene) return 0;
+    const ids = (tokenIds ?? []).filter(id => scene.tokens.has(id));
+    if (!ids.length) return 0;
+    for (const combat of game.combats) {
+        if (combat.scene?.id !== scene.id) continue;
+        const combatantIds = combat.combatants.filter(c => ids.includes(c.tokenId)).map(c => c.id);
+        if (combatantIds.length) await combat.deleteEmbeddedDocuments("Combatant", combatantIds);
+    }
+    await scene.deleteEmbeddedDocuments("Token", ids);
+    return ids.length;
+}
+
 async function createHazardAsGM(regionData, drawingData, sceneId) {
     const scene = game.scenes.get(sceneId) || canvas.scene || game.scenes.active;
     if (!scene) return;
@@ -391,6 +409,7 @@ export const setupSocket = () => {
         if (socketlibSocket) {
             socketlibSocket.register("requestSpawnBatch", requestSpawnBatch);
             socketlibSocket.register("deleteTokenAsGM", deleteTokenAsGM);
+            socketlibSocket.register("deleteTokensAsGM", deleteTokensAsGM);
             socketlibSocket.register("createHazardAsGM", createHazardAsGM);
         }
     }
@@ -451,6 +470,16 @@ export async function executeDelete(tokenId, sceneId = canvas.scene?.id) {
         }
         await socketlibSocket.executeAsGM("deleteTokenAsGM", tokenId, sceneId);
     }
+}
+
+export async function executeDeleteBatch(tokenIds, sceneId = canvas.scene?.id) {
+    if (!tokenIds?.length) return 0;
+    if (game.user.isGM) return await deleteTokensAsGM(tokenIds, sceneId);
+    if (!socketlibSocket) {
+        notifyForce("error", "Socketlib connection not established.");
+        return 0;
+    }
+    return await socketlibSocket.executeAsGM("deleteTokensAsGM", tokenIds, sceneId);
 }
 
 export async function executeHazard(regionData, drawingData, sceneId = canvas.scene?.id) {
