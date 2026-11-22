@@ -440,7 +440,71 @@ export function defaultThrallLabel(actor) {
     return name ? `(Default Thrall: ${escaped})` : "(Default Thrall)";
 }
 
-export async function prepareThrallPayload(necroActor, presetId = "default") {
+const escapeHtml = (t) => foundry.utils.escapeHTML?.(String(t)) ?? String(t);
+
+/** Preset ids of this necromancer's tokens on the scene. Names get random adjectives, so match on the flag. */
+export function getActivePresetIds(necroActor, scene = canvas.scene) {
+    const ids = new Set();
+    for (const t of scene?.tokens ?? []) {
+        const flags = t.flags?.["necromancer-thrall-helper"];
+        if (flags?.masterId === necroActor?.id && flags.presetId) ids.add(flags.presetId);
+    }
+    return ids;
+}
+
+/** The preset id a prepared payload was built from. */
+export function payloadPresetId(payload) {
+    return payload?.flags?.["necromancer-thrall-helper"]?.presetId;
+}
+
+/**
+ * Options for a summon dialog's identity select. Unique presets that are already on the scene for
+ * this necromancer (or listed in excludeIds) are left out entirely.
+ */
+export function buildPresetOptions(actor, presets, { excludeIds = new Set(), includeDefaultRandom = true, randomLabel = "(Random Family Member)" } = {}) {
+    const active = getActivePresetIds(actor);
+    let html = includeDefaultRandom
+        ? `<option value="default">${defaultThrallLabel(actor)}</option><option value="random">${randomLabel}</option>`
+        : "";
+    for (const p of presets) {
+        if (p.isUnique && (active.has(p.id) || excludeIds.has(p.id))) continue;
+        html += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+    }
+    return html;
+}
+
+/**
+ * Keep several summon slots from picking the same unique preset: whatever one slot has chosen is
+ * removed from the others, and put back when that slot changes. A slot always keeps its own choice.
+ */
+export function bindUniqueSlotFiltering(formEl, presets, slotSelector) {
+    const uniqueIds = new Set(presets.filter(p => p.isUnique).map(p => p.id));
+    const slots = [...formEl.querySelectorAll(slotSelector)];
+    if (slots.length < 2 || !uniqueIds.size) return;
+    const full = new Map(slots.map(s => [s, [...s.options].map(o => o.cloneNode(true))]));
+    const refresh = () => {
+        for (const slot of slots) {
+            const taken = new Set(slots.filter(o => o !== slot).map(o => o.value).filter(v => uniqueIds.has(v)));
+            const keep = slot.value;
+            slot.replaceChildren(...full.get(slot).filter(o => o.value === keep || !taken.has(o.value)).map(o => o.cloneNode(true)));
+            slot.value = keep;
+        }
+    };
+    slots.forEach(s => s.addEventListener("change", refresh));
+}
+
+/**
+ * Unique presets a slot must not produce: those picked explicitly in the other slots plus those
+ * already produced by earlier slots of the batch (e.g. a rolled "Random").
+ */
+export function batchExcludeIds(presets, selections, index, produced = new Set()) {
+    const uniqueIds = new Set(presets.filter(p => p.isUnique).map(p => p.id));
+    const ids = new Set(produced);
+    selections.forEach((v, j) => { if (j !== index && uniqueIds.has(v)) ids.add(v); });
+    return ids;
+}
+
+export async function prepareThrallPayload(necroActor, presetId = "default", { excludeIds = new Set() } = {}) {
 
     let protoActor = game.actors.find(a => a.name === "Thrall" && a.getFlag("necromancer-thrall-helper", "isBaseThrall"));
 
@@ -497,8 +561,8 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
     let portraitPath = null;
     let ringSubjectPath = null;
     if (presetId === "random" && customPresets.length > 0) {
-        const activePresetIds = canvas.scene ? canvas.scene.tokens.map(t => t.flags["necromancer-thrall-helper"]?.presetId) : [];
-        const availablePresets = customPresets.filter(p => !p.isUnique || !activePresetIds.includes(p.id));
+        const activePresetIds = getActivePresetIds(necroActor);
+        const availablePresets = customPresets.filter(p => !p.isUnique || !(activePresetIds.has(p.id) || excludeIds.has(p.id)));
 
         if (availablePresets.length === 0) {
             preset = defaultPreset;
@@ -511,8 +575,8 @@ export async function prepareThrallPayload(necroActor, presetId = "default") {
         // and already on the field.
         const defaultId = getDefaultPresetId(necroActor);
         const defaultEntry = defaultId ? customPresets.find(p => p.id === defaultId) : null;
-        const activeIds = canvas.scene ? canvas.scene.tokens.map(t => t.flags["necromancer-thrall-helper"]?.presetId) : [];
-        preset = defaultEntry && !(defaultEntry.isUnique && activeIds.includes(defaultEntry.id)) ? defaultEntry : defaultPreset;
+        const activeIds = getActivePresetIds(necroActor);
+        preset = defaultEntry && !(defaultEntry.isUnique && (activeIds.has(defaultEntry.id) || excludeIds.has(defaultEntry.id))) ? defaultEntry : defaultPreset;
     } else {
         preset = customPresets.find(p => p.id === presetId) || defaultPreset;
     }

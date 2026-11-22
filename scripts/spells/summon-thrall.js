@@ -1,4 +1,4 @@
-import { getFatalMethodName, prepareThrallPayload, getThrallPresets, defaultThrallLabel } from "../system/thrall-manager.js";
+import { getFatalMethodName, prepareThrallPayload, getThrallPresets, defaultThrallLabel, buildPresetOptions, bindUniqueSlotFiltering, batchExcludeIds, payloadPresetId } from "../system/thrall-manager.js";
 import { createSpawnBatch } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
 import { effectColorNum } from "../system/effect-colors.js";
@@ -26,21 +26,7 @@ export function bindSummonThrallButtons(deck, html) {
             if (applyProliferation) count += 1;
 
             const presets = getThrallPresets(actor);
-            let optionsHtml = `
-                <option value="default">${defaultThrallLabel(actor)}</option>
-                <option value="random">(Random Family Member)</option>
-            `;
-            presets.forEach(p => {
-                const isAlreadyActive = canvas?.scene?.tokens?.some(t =>
-                    t.getFlag("necromancer-thrall-helper", "masterId") === actor.id &&
-                    t.name === p.name
-                );
-                if (p.isUnique && isAlreadyActive) {
-                    optionsHtml += `<option value="${p.id}" disabled>${p.name} (Already Active)</option>`;
-                } else {
-                    optionsHtml += `<option value="${p.id}">${p.name}</option>`;
-                }
-            });
+            const optionsHtml = buildPresetOptions(actor, presets);
 
             let formHtml = `<form><p>Select the identities for your summons:</p>`;
             for (let i = 0; i < count; i++) {
@@ -82,6 +68,7 @@ export function bindSummonThrallButtons(deck, html) {
                             const batch = createSpawnBatch();
                             let proliferationAnnounced = false;
                             let currentSpawnIndex = 0;
+                            const producedIds = new Set();
 
                             placementHint(`Click the canvas to place Summon ${currentSpawnIndex + 1}. Right-click or Esc undoes the last one; Enter sends early.`);
                             document.body.style.cursor = "crosshair";
@@ -152,8 +139,9 @@ export function bindSummonThrallButtons(deck, html) {
                                 const snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(position) : position;
 
                                 const presetId = selections[currentSpawnIndex];
-                                const basePayload = await prepareThrallPayload(actor, presetId);
+                                const basePayload = await prepareThrallPayload(actor, presetId, { excludeIds: batchExcludeIds(presets, selections, currentSpawnIndex, producedIds) });
                                 if (!basePayload) { batch.finish(); cleanUp(); return; }
+                                producedIds.add(payloadPresetId(basePayload));
 
                                 const finalPayload = foundry.utils.mergeObject(basePayload, {
                                     x: snapped.x,
@@ -196,7 +184,8 @@ export function bindSummonThrallButtons(deck, html) {
                     },
                     cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                 },
-                default: "summon"
+                default: "summon",
+                render: (dialogHtml) => bindUniqueSlotFiltering(dialogHtml[0], presets, "select[id^='preset-selector-']")
             }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
         });
     });

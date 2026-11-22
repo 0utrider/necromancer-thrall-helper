@@ -4,7 +4,10 @@ import {
     repairActorArt,
     tokenPortrait,
     isVideoPath,
-    defaultThrallLabel
+    buildPresetOptions,
+    bindUniqueSlotFiltering,
+    batchExcludeIds,
+    payloadPresetId
 } from "./thrall-manager.js";
 import { executeSpawn, createSpawnBatch, executeDelete, executeHazard } from "./socket.js";
 import { notify, notifyForce, placementHint } from "./notify.js";
@@ -1305,12 +1308,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             if (attacker.getFlag("necromancer-thrall-helper", `harvested_${targetId}`) || message.getFlag("necromancer-thrall-helper", "reactionUsed")) return notify("warn", "This corpse has already been harvested.");
             const presets = typeof getThrallPresets === "function" ? getThrallPresets(attacker) : [];
             if (presets.length === 0) return notify("warn", "No thrall presets found.");
-            let optionsHtml = `<option value="default">${defaultThrallLabel(attacker)}</option><option value="random">(Random Family Member)</option>`;
-            presets.forEach(p => {
-                optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attacker.id && t.name === p.name))
-                    ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>`
-                    : `<option value="${p.id}">${p.name}</option>`;
-            });
+            const optionsHtml = buildPresetOptions(attacker, presets);
             const presetChoice = await foundry.applications.api.DialogV2.wait({
                 window: { title: "Inevitable Return", icon: "fas fa-skull" },
                 content: `<p>Select the identity for the new <b>${size === "sm" ? "Small" : "Medium"}</b> thrall rising from <b>${targetToken.name}</b>:</p><div class="form-group"><label>Thrall Identity:</label><div class="form-fields"><select id="inevitable-preset">${optionsHtml}</select></div></div>`,
@@ -1409,8 +1407,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             if (!attacker) return notify("warn", "No Necromancer found to command the thralls!");
             const presets = typeof getThrallPresets === "function" ? getThrallPresets(attacker) : [];
             if (presets.length === 0) return notify("warn", "No thrall presets found.");
-            let optionsHtml = `<option value="default">${defaultThrallLabel(attacker)}</option><option value="random">(Random Family Member)</option>`;
-            presets.forEach(p => { optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attacker.id && t.name === p.name)) ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>` : `<option value="${p.id}">${p.name}</option>`; });
+            const optionsHtml = buildPresetOptions(attacker, presets);
             let formHtml = `<form><p>Select the identities for the <b>${count}</b> new thrall(s) spawned near <b>${targetToken ? targetToken.name : "the field"}</b>:</p>`;
             for (let i = 0; i < count; i++) formHtml += `<div class="form-group"><label>Thrall ${i + 1}:</label><div class="form-fields"><select id="gore-preset-${i}">${optionsHtml}</select></div></div>`;
             new Dialog({
@@ -1427,6 +1424,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
                             }
                             const batch = createSpawnBatch();
                             let currentSpawnIndex = 0;
+                            const producedIds = new Set();
                             placementHint(`Click the canvas to sprout Thrall 1 adjacent to the field. Right-click or Esc undoes the last one; Enter sends early.`);
                             document.body.style.cursor = "crosshair"; canvas.app.view.style.cursor = "crosshair";
                             const ghost = new PIXI.Graphics(); ghost.beginFill(0xcc0000, 0.4); ghost.lineStyle(2, 0xff0000, 0.8); ghost.drawRect(0, 0, canvas.grid.size, canvas.grid.size); ghost.endFill(); ghost.zIndex = 1000; ghost.position.set(-1000, -1000); canvas.tokens.addChild(ghost);
@@ -1440,8 +1438,9 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
                                     batch.cancel(); notify("info", "Sprouting cancelled."); return cleanUp();
                                 }
                                 const pos = ev.data.getLocalPosition(canvas.app.stage), snapped = canvas.grid.getTopLeftPoint ? canvas.grid.getTopLeftPoint(pos) : pos;
-                                const basePayload = await prepareThrallPayload(attacker, selections[currentSpawnIndex]);
+                                const basePayload = await prepareThrallPayload(attacker, selections[currentSpawnIndex], { excludeIds: batchExcludeIds(presets, selections, currentSpawnIndex, producedIds) });
                                 if (!basePayload) { batch.finish(); return cleanUp(); }
+                                producedIds.add(payloadPresetId(basePayload));
                                 batch.add(foundry.utils.mergeObject(basePayload, { x: snapped.x, y: snapped.y, elevation: targetToken?.document?.elevation || attacker?.getActiveTokens()[0]?.document?.elevation || 0, delta: { ownership: { [game.user.id]: 3 } } }));
                                 currentSpawnIndex++;
                                 if (currentSpawnIndex < count) { placementHint(`Place Thrall ${currentSpawnIndex + 1}.`); canvas.stage.once("pointerdown", interactionHandler); }
@@ -1457,7 +1456,8 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
                     },
                     cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
                 },
-                default: "summon"
+                default: "summon",
+                render: (dialogHtml) => bindUniqueSlotFiltering(dialogHtml[0], presets, "select[id^='gore-preset-']")
             }).render(true);
         }
 
@@ -1488,8 +1488,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             e.preventDefault();
             if (!game.user.isGM && !attackerToken?.isOwner) return;
             const targetToken = canvas.tokens.get($btn.attr("data-target-id")), presets = typeof getThrallPresets === "function" ? getThrallPresets(attackerActor) : [];
-            let optionsHtml = `<option value="default">${defaultThrallLabel(attackerActor)}</option><option value="random">(Random Family Member)</option>`;
-            presets.forEach(p => { optionsHtml += (p.isUnique && canvas?.scene?.tokens?.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === attackerActor.id && t.name === p.name)) ? `<option value="${p.id}" disabled>${p.name} (Already Active)</option>` : `<option value="${p.id}">${p.name}</option>`; });
+            const optionsHtml = buildPresetOptions(attackerActor, presets);
             new Dialog({
                 title: "Inspire Heroic Thrall", content: `<p>Your critical strike calls a spirit to the battlefield!</p><p>Select an identity to spawn adjacent to <b>${targetToken ? targetToken.name : "the target"}</b>:</p><form><div class="form-group"><select id="heroic-preset">${optionsHtml}</select></div></form>`,
                 buttons: {
