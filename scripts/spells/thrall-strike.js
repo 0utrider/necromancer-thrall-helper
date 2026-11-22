@@ -5,9 +5,83 @@ import { canThrallDealVitality, getSpellDC, getTokenDistance } from "./spell-hel
 import { getNecroEffect, findNecroEffects } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
 
-export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj, isKamikaze = false, chargeDice = 0, passedSpellRank = 0) {
+/** Attack bonus and dice count for a Thrall Strike, from the necromancer's current level. */
+function thrallStrikeStats(actor) {
     const necroLevel = actor.level || 1;
     const baseDice = Math.max(1, Math.floor((necroLevel - 1) / 4) + 1);
+    let attackMod = Math.floor(necroLevel * 1.5);
+    const spellcasting = actor.spellcasting?.filter(s => s.statistic)?.sort((a, b) => b.statistic.check.mod - a.statistic.check.mod)[0];
+    if (spellcasting) attackMod = spellcasting.statistic.check.mod;
+    return { baseDice, attackMod };
+}
+
+/** One place that decides which damage type a thrall's Strike or Charge uses. */
+export function resolveThrallDamageType(deck, actor, tokenDoc, tokenId = tokenDoc.id) {
+    let damageType = deck?.spiritStates?.[tokenId] || "bludgeoning";
+    if (damageType === "vitality" && !canThrallDealVitality(actor)) damageType = "bludgeoning";
+    if (tokenDoc.getFlag("necromancer-thrall-helper", "isRecurringNightmare")) damageType = "void";
+    if (tokenDoc.getFlag("necromancer-thrall-helper", "isSkeletalLancer")) damageType = "piercing";
+    return damageType;
+}
+
+function strikeItems(thrallActor) {
+    return thrallActor.items.filter(i => i.type === "melee" && (i.system?.slug === "thrall-strike" || i.name.includes("Thrall Strike")));
+}
+
+/** Exactly one Thrall Strike item, with the right type, dice and bonus. Returns it. */
+export async function ensureThrallStrike(tokenDoc, { damageType, baseDice, attackMod }) {
+    const thrall = tokenDoc.actor;
+    const [keep, ...extras] = strikeItems(thrall);
+    if (extras.length) await thrall.deleteEmbeddedDocuments("Item", extras.map(i => i.id));
+
+    const data = {
+        name: "Thrall Strike",
+        type: "melee",
+        img: "icons/skills/melee/unarmed-punch-fist.webp",
+        system: {
+            slug: "thrall-strike",
+            weaponType: { value: "melee" },
+            bonus: { value: attackMod },
+            damageRolls: { base: { damage: `${baseDice}d6`, damageType } },
+            traits: { value: ["magical", "unarmed"] }
+        }
+    };
+    if (!keep) return (await thrall.createEmbeddedDocuments("Item", [data]))[0];
+
+    const key = Object.keys(keep.system.damageRolls ?? {})[0] ?? "base";
+    await keep.update({
+        "system.slug": "thrall-strike",
+        "system.bonus.value": attackMod,
+        [`system.damageRolls.${key}.damage`]: `${baseDice}d6`,
+        [`system.damageRolls.${key}.damageType`]: damageType
+    });
+    return keep;
+}
+
+/** Active GM, on scene load: remove duplicate Thrall Strike items left on thrall tokens by older versions. */
+export async function dedupeSceneThrallStrikes(scene = canvas.scene) {
+    if (!game.user.isGM || game.users.activeGM?.isSelf === false || !scene) return;
+    for (const token of scene.tokens) {
+        if (!token.getFlag("necromancer-thrall-helper", "masterId") || !token.actor) continue;
+        const [, ...extras] = strikeItems(token.actor);
+        if (extras.length) await token.actor.deleteEmbeddedDocuments("Item", extras.map(i => i.id)).catch(err => console.warn("Necromancer Thrall Helper | Strike dedupe failed:", err));
+    }
+}
+
+/** Wait for PF2e to publish the Strike action for this item with the wanted damage type. */
+async function waitForStrikeAction(thrall, item, damageType, variantIndex) {
+    for (let attempts = 0; attempts < 30; attempts++) {
+        const strike = thrall?.system?.actions?.find(a => a.item?.id === item.id);
+        const rolls = strike?.item?.system?.damageRolls ?? {};
+        const type = Object.values(rolls)[0]?.damageType;
+        if (strike?.variants?.[variantIndex] && type === damageType) return strike;
+        await new Promise(resolve => setTimeout(resolve, 100));
+    }
+    return null;
+}
+
+export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj, isKamikaze = false, chargeDice = 0, passedSpellRank = 0) {
+    const necroLevel = actor.level || 1;
 
     const mapPenalty = deck.currentMap !== undefined ? deck.currentMap : 0;
     let variantIndex = 0;
@@ -20,14 +94,7 @@ export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj,
     const isPerfected = tokenDoc.getFlag("necromancer-thrall-helper", "isPerfectedThrall") || tokenDoc.name.includes("Perfected");
     const spellRank = passedSpellRank || Math.max(1, Math.ceil(necroLevel / 2));
 
-    let damageType = "bludgeoning";
-    if (deck.spiritStates && deck.spiritStates[tokenId]) {
-        damageType = deck.spiritStates[tokenId];
-    }
-
-    if (damageType === "vitality" && !canThrallDealVitality(actor)) damageType = "bludgeoning";
-    if (isNightmare) damageType = "void";
-    if (isLancer) damageType = "piercing";
+    const damageType = resolveThrallDamageType(deck, actor, tokenDoc, tokenId);
 
     let totalChargeDice = chargeDice;
     if (isNightmare || isLancer) {
@@ -37,45 +104,8 @@ export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj,
     if (isGraveyard && chargeDice > 0) totalChargeDice += 3;
     if (isPerfected && chargeDice > 0) totalChargeDice += 6;
 
-    let existingWeapon = tokenDoc.actor.items.find(i => i.type === "melee" && i.name.includes("Thrall Strike"));
-
-    if (existingWeapon) {
-        const rollKeys = Object.keys(existingWeapon.system.damageRolls || {});
-        const currentType = rollKeys.length > 0 ? existingWeapon.system.damageRolls[rollKeys[0]].damageType : null;
-        if (currentType !== damageType) {
-            await existingWeapon.delete();
-            existingWeapon = null;
-        }
-    }
-
-    if (!existingWeapon) {
-        let attackMod = Math.floor(necroLevel * 1.5);
-        const spellcasting = actor.spellcasting?.filter(s => s.statistic)?.sort((a, b) => b.statistic.check.mod - a.statistic.check.mod)[0];
-        if (spellcasting) attackMod = spellcasting.statistic.check.mod;
-
-        const weaponData = {
-            name: "Thrall Strike",
-            type: "melee",
-            img: "icons/skills/melee/unarmed-punch-fist.webp",
-            system: {
-                weaponType: { value: "melee" },
-                bonus: { value: attackMod },
-                damageRolls: { base: { damage: `${baseDice}d6`, damageType: damageType } },
-                traits: { value: ["magical", "unarmed"] }
-            }
-        };
-        await tokenDoc.actor.createEmbeddedDocuments("Item", [weaponData]);
-    } else {
-        const rollKeys = Object.keys(existingWeapon.system.damageRolls || {});
-        if (rollKeys.length > 0) {
-            const firstKey = rollKeys[0];
-            if (existingWeapon.system.damageRolls[firstKey].damageType !== damageType) {
-                await existingWeapon.update({
-                    [`system.damageRolls.${firstKey}.damageType`]: damageType
-                });
-            }
-        }
-    }
+    const { baseDice: strikeDice, attackMod } = thrallStrikeStats(actor);
+    const weapon = await ensureThrallStrike(tokenDoc, { damageType, baseDice: strikeDice, attackMod });
 
     let addedEffectIds = [];
     if (totalChargeDice > 0) {
@@ -87,17 +117,9 @@ export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj,
         addedEffectIds = createdEffects.map(effect => effect.id);
     }
 
-    let strike = null;
-    for (let attempts = 0; attempts < 20; attempts++) {
-        const actionsList = tokenDoc.actor?.system?.actions;
-        strike = actionsList?.find(a => a.item?.name?.includes("Thrall Strike") || a.slug?.includes("thrall-strike"));
-        if (strike && strike.variants && strike.variants[variantIndex]) {
-            break;
-        }
-        await new Promise(resolve => setTimeout(resolve, 100));
-    }
+    const strike = await waitForStrikeAction(tokenDoc.actor, weapon, damageType, variantIndex);
 
-    if (!strike || !strike.variants || !strike.variants[variantIndex]) {
+    if (!strike) {
         notify("warn", `Execution failed. ${tokenDoc.name} could not draw its weapon (Network Timeout).`);
         return;
     }
@@ -177,7 +199,7 @@ export async function executeCharge({ deck, actor, tokenDoc, tokenId, event }) {
     }).render(true);
 }
 
-export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }) {
+export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId = tokenDoc.id, event }) {
     const originalTargets = Array.from(game.user.targets);
     if (originalTargets.length === 0 || originalTargets.length > 2) {
         return notify("warn", "Conglomerate Charge requires exactly 1 or 2 targets selected.");
@@ -189,7 +211,6 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }
     }
 
     const necroLevel = actor.level || 1;
-    const baseDice = Math.max(1, Math.floor((necroLevel - 1) / 4) + 1);
     const spellRank = Math.max(1, Math.ceil(necroLevel / 2));
     let chargeDice = 1;
     if (spellRank >= 10) chargeDice = 4;
@@ -202,25 +223,9 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }
             await tokenDoc.actor.deleteEmbeddedDocuments("Item", staleEffects.map(i => i.id));
         }
 
-        const existingWeapon = tokenDoc.actor.items.find(i => i.type === "melee" && i.name.includes("Thrall Strike"));
-        if (!existingWeapon) {
-            let attackMod = Math.floor(necroLevel * 1.5);
-            const spellcasting = actor.spellcasting?.filter(s => s.statistic)?.sort((a, b) => b.statistic.check.mod - a.statistic.check.mod)[0];
-            if (spellcasting) attackMod = spellcasting.statistic.check.mod;
-
-            const weaponData = {
-                name: "Thrall Strike",
-                type: "melee",
-                img: "icons/skills/melee/unarmed-punch-fist.webp",
-                system: {
-                    weaponType: { value: "melee" },
-                    bonus: { value: attackMod },
-                    damageRolls: { base: { damage: `${baseDice}d6`, damageType: "bludgeoning" } },
-                    traits: { value: ["magical", "unarmed"] }
-                }
-            };
-            await tokenDoc.actor.createEmbeddedDocuments("Item", [weaponData]);
-        }
+        const damageType = resolveThrallDamageType(deck, actor, tokenDoc, tokenId);
+        const { baseDice, attackMod } = thrallStrikeStats(actor);
+        const weapon = await ensureThrallStrike(tokenDoc, { damageType, baseDice, attackMod });
 
         let addedEffectIds = [];
         if (chargeDice > 0) {
@@ -235,17 +240,9 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }
         if (mapPenalty === -5) variantIndex = 1;
         if (mapPenalty === -10) variantIndex = 2;
 
-        let strike = null;
-        for (let attempts = 0; attempts < 20; attempts++) {
-            const actionsList = tokenDoc.actor?.system?.actions;
-            strike = actionsList?.find(a => a.item?.name?.includes("Thrall Strike") || a.slug?.includes("thrall-strike"));
-            if (strike && strike.variants && strike.variants[variantIndex]) {
-                break;
-            }
-            await new Promise(resolve => setTimeout(resolve, 100));
-        }
+        const strike = await waitForStrikeAction(tokenDoc.actor, weapon, damageType, variantIndex);
 
-        if (!strike || !strike.variants || !strike.variants[variantIndex]) {
+        if (!strike) {
             notify("error", `${tokenDoc.name} could not draw its weapon (Network Timeout).`);
             return;
         }

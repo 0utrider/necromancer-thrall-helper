@@ -1,4 +1,5 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
+import { dedupeSceneThrallStrikes } from "./spells/thrall-strike.js";
 import { resolveNecromancer, resolveNecromancerOrNotify, setupResolveHooks } from "./system/necro-resolve.js";
 import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
@@ -152,6 +153,7 @@ Hooks.once("ready", () => {
     globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
     globalThis.NecroThrallHelper.checkIcons = checkIcons; // dev check: await NecroThrallHelper.checkIcons()
     setupEffectColorHooks();
+    Hooks.on("canvasReady", () => dedupeSceneThrallStrikes().catch(err => console.warn("Necromancer Thrall Helper | Strike dedupe failed:", err)));
     repairWorldThrallArt().catch(err => console.warn("Necromancer Thrall Helper | Could not repair thrall art:", err));
     sweepEmptyRegions().catch(err => console.warn("Necromancer Thrall Helper | Region sweep failed:", err));
     checkBrowsePermissions().catch(err => console.warn("Necromancer Thrall Helper | Permission check failed:", err));

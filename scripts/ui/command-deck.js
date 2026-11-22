@@ -29,6 +29,9 @@ export {
 
 const { ApplicationV2, HandlebarsApplicationMixin } = foundry.applications.api;
 
+// Thrall tokens with an action in flight. Stops double-clicks from running one action twice.
+const BUSY_THRALLS = new Set();
+
 export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2) {
     static DEFAULT_OPTIONS = {
         id: "thrall-command-deck",
@@ -397,6 +400,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 e.preventDefault();
                 const row = e.currentTarget.closest(".thrall-row");
                 const tokenId = row.dataset.tokenId;
+                if (BUSY_THRALLS.has(tokenId)) return;
                 const action = row.querySelector(".action-dropdown").value;
                 const actor = game.actors.get(this.necroId) || game.user.character;
 
@@ -405,8 +409,15 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (!tokenDoc) return notify("error", "Execution Failed: Thrall token not found on the canvas.");
 
                 const handler = THRALL_ACTIONS[action];
-                if (handler) {
+                if (!handler) return;
+                const button = e.currentTarget;
+                BUSY_THRALLS.add(tokenId);
+                button.disabled = true;
+                try {
                     await handler({ deck: this, actor, tokenDoc, tokenId, event: e });
+                } finally {
+                    BUSY_THRALLS.delete(tokenId);
+                    if (button.isConnected) button.disabled = false;
                 }
             });
         });
