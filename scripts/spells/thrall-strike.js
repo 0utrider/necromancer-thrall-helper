@@ -1,6 +1,6 @@
 import { tokenPortrait } from "../system/thrall-manager.js";
 import { executeDelete } from "../system/socket.js";
-import { notify, guardAction } from "../system/notify.js";
+import { notify, notifyForce, guardAction } from "../system/notify.js";
 import { canThrallDealVitality, getSpellDC, getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect, findNecroEffects } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
@@ -156,6 +156,7 @@ export async function executeStrike({ deck, actor, tokenDoc, tokenId, event }) {
 }
 
 export async function executeCharge({ deck, actor, tokenDoc, tokenId, event }) {
+    if (!tokenDoc.actor?.isOwner) return notifyForce("warn", "You don't own this thrall. Ask the GM to give you ownership.");
     const necroLevel = actor.level || 1;
     const spellRank = Math.ceil(necroLevel / 2);
     let chargeDice = 1;
@@ -187,6 +188,7 @@ export async function executeCharge({ deck, actor, tokenDoc, tokenId, event }) {
 }
 
 export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId = tokenDoc.id, event }) {
+    if (!tokenDoc.actor?.isOwner) return notifyForce("warn", "You don't own this thrall. Ask the GM to give you ownership.");
     const originalTargets = Array.from(game.user.targets);
     if (originalTargets.length === 0 || originalTargets.length > 2) {
         return notify("warn", "Conglomerate Charge requires exactly 1 or 2 targets selected.");

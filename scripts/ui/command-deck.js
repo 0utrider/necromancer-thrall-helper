@@ -2,7 +2,7 @@ import "../system/necro-hooks.js";
 import { getFatalMethodName, tokenPortrait } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeDelete } from "../system/socket.js";
-import { notify, guardAction } from "../system/notify.js";
+import { notify, notifyForce, guardAction } from "../system/notify.js";
 import { userOwns } from "../system/necro-resolve.js";
 import { findNecroEffect } from "../system/effect-catalog.js";
 import { openDefaultLookDialog, openNecroSettingsDialog, openSpellcastingCheckDialog } from "./deck-dialogs.js";
@@ -60,7 +60,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
         const savedPos = localStorage.getItem(`necro-deck-bounds-${game.user?.id}`);
         if (savedPos) {
             try {
-                options.position = foundry.utils.mergeObject(options.position || {}, JSON.parse(savedPos));
+                // Height is never restored: the deck sizes itself to its thralls (see _onRender).
+                const { left, top, width } = JSON.parse(savedPos);
+                options.position = foundry.utils.mergeObject(options.position || {}, { left, top, width });
             } catch (e) {
                 console.error("Necromancer Helper | Failed to parse saved window position.");
             }
@@ -289,7 +291,10 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             this._checkSpellcasting();
         }
 
-        // 1. Persist window bounds once per instance
+        // Grow with the thrall list; past the viewport cap (CSS max-height) the list scrolls instead.
+        this.setPosition({ height: "auto" });
+
+        // 1. Persist window position and width once per instance
         if (!this._boundsListenerBound) {
             this._boundsListenerBound = true;
             html.addEventListener("pointerup", () => {
@@ -297,8 +302,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 localStorage.setItem(`necro-deck-bounds-${game.user.id}`, JSON.stringify({
                     left: this.position.left,
                     top: this.position.top,
-                    width: this.position.width,
-                    height: this.position.height
+                    width: this.position.width
                 }));
             });
         }
@@ -407,6 +411,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 if (!actor || !canvas.scene) return notify("error", "Execution Failed: Necromancer or Canvas not found.");
                 const tokenDoc = canvas.scene.tokens.get(tokenId);
                 if (!tokenDoc) return notify("error", "Execution Failed: Thrall token not found on the canvas.");
+                if (!tokenDoc.actor?.isOwner) return notifyForce("warn", "You don't own this thrall. Ask the GM to give you ownership.");
 
                 const handler = THRALL_ACTIONS[action];
                 if (!handler) return;
