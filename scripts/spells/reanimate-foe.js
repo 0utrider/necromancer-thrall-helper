@@ -4,6 +4,7 @@ import { notify, placementHint } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export async function executeReanimateFoe({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -177,7 +178,7 @@ export async function executeReanimateFoe({ actor, tokenDoc }) {
                         });
                     }
 
-                    await ChatMessage.create({
+                    await createNecroCard({
                         speaker: ChatMessage.getSpeaker({ actor }),
                         flavor: `<strong>Reanimate Foe</strong>`,
                         content: chatContent

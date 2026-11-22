@@ -3,6 +3,7 @@ import { getTokenDistance } from "./spell-helpers.js";
 import { executeDelete } from "../system/socket.js";    
 import { getNecroEffect } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export async function executeAmalgamate({ deck, actor, tokenDoc }) {
     const necroTokens = actor.getActiveTokens();
@@ -70,7 +71,7 @@ export async function executeAmalgamate({ deck, actor, tokenDoc }) {
                     await executeDelete(secondaryToken.id);
                     deck.render({ force: false });
 
-                    await ChatMessage.create({
+                    await createNecroCard({
                         speaker: ChatMessage.getSpeaker({ actor }),
                         flavor: `<strong>Amalgamate!</strong>`,
                         content: `

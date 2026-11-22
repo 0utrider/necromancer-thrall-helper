@@ -4,6 +4,7 @@ import { notify, notifyForce } from "../system/notify.js";
 import { effectColorNum } from "../system/effect-colors.js";
 import { executeDeleteBatch } from "../system/socket.js";
 import { isNecroEffect } from "../system/effect-catalog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export const THRALL_DMG_COLORS = { spirit: DMG_COLORS.spirit, void: DMG_COLORS.void, vitality: DMG_COLORS.vitality };
 
@@ -459,7 +460,7 @@ export async function postManualSaveCard({
         }
     };
     if (flavor) msgData.flavor = flavor;
-    return await ChatMessage.create(msgData);
+    return await createNecroCard(msgData);
 }
 
 // Register global graphics helpers on globalThis.NecroThrallHelper

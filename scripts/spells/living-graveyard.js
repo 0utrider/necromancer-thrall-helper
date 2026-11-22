@@ -12,6 +12,7 @@ import {
     snapTopLeft
 } from "./spell-helpers.js";
 import { getNecroEffect } from "../system/effect-catalog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export async function executeSheddingMatrix(actor, maxSpawns) {
     globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
@@ -285,7 +286,7 @@ export function bindLivingGraveyardButtons(deck, html) {
                             saveDC: exactDC
                         });
 
-                        await ChatMessage.create({
+                        await createNecroCard({
                             speaker: ChatMessage.getSpeaker({ actor }),
                             flavor: `<strong>Living Graveyard Spawned!</strong>`,
                             content: `

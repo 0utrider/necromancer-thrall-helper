@@ -2,6 +2,7 @@ import { executeDelete, executeHazard } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
 import { getSpellDC, getTokenDistance, snapTopLeft, buildNecroSpellData } from "./spell-helpers.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export function bindZombieHordeButtons(deck, html) {
     const sustainBtn = html.querySelector(".sustain-horde-btn");
@@ -85,7 +86,7 @@ export function bindZombieHordeButtons(deck, html) {
                     }
 
                     if (newRadiusFeet > currentRadiusFeet) {
-                        ChatMessage.create({
+                        createNecroCard({
                             speaker: ChatMessage.getSpeaker({ actor }),
                             content: `<p><strong>Zombie Horde Feasts!</strong> By moving over its own thralls, the horde consumes ${consumedThralls.length} of them instantly, swelling its radius to ${newRadiusFeet} feet!</p>`
                         });
@@ -222,7 +223,7 @@ export async function executeZombieHorde({ deck, actor, tokenDoc }) {
                     await executeHazard(regionData, drawingData);
                     deck?.render({ force: false });
 
-                    await ChatMessage.create({
+                    await createNecroCard({
                         speaker: ChatMessage.getSpeaker({ actor }),
                         flavor: `<strong>Zombie Horde</strong>`,
                         content: `<p><b>${actor.name}</b> rips open the earth, unleashing a horde of ravenous zombies! The area is difficult terrain and deals damage to enemies beginning their turn inside it.</p>`

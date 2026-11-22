@@ -3,6 +3,7 @@ import { notify } from "../system/notify.js";
 import { getSpellDC, getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export function bindBlossomingGoreButtons(deck, html) {
     const dismissGoreBtn = html.querySelector(".dismiss-gore-btn");
@@ -168,7 +169,7 @@ export async function executeBlossomingGore({ deck, actor, tokenDoc }) {
                     await executeDelete(tokenDoc.id);
                     deck.render({ force: false });
 
-                    await ChatMessage.create({
+                    await createNecroCard({
                         speaker: ChatMessage.getSpeaker({ actor }),
                         flavor: `<strong>Blossoming Gore</strong>`,
                         content: `

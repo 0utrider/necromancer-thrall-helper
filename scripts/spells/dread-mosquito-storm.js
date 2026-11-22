@@ -2,6 +2,7 @@ import { tokenPortrait } from "../system/thrall-manager.js";
 import { executeHazard } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
 import { getSpellDC, buildNecroSpellData } from "./spell-helpers.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export function bindDreadMosquitoButtons(deck, html) {
     const dmsBtn = html.querySelector(".dms-btn");
@@ -178,7 +179,7 @@ export function bindDreadMosquitoButtons(deck, html) {
 
                 deck.render({ force: false });
 
-                await ChatMessage.create({
+                await createNecroCard({
                     speaker: ChatMessage.getSpeaker({ actor }),
                     flavor: `<strong>Dread Mosquito Storm</strong>`,
                     content: `

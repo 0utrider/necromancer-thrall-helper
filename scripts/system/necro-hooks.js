@@ -24,6 +24,7 @@ import {
     dismissAllThrallsForActor
 } from "../spells/spell-helpers.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { createNecroCard } from "./necro-card.js";
 
 globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
 globalThis.NecroThrallHelper.declinedPools = globalThis.NecroThrallHelper.declinedPools || new Set();
@@ -658,7 +659,7 @@ Hooks.on("deleteToken", async (tokenDoc) => {
                     direction: CONST.TEXT_ANCHOR_POINTS.UP
                 });
             }
-            await ChatMessage.create({
+            await createNecroCard({
                 speaker: ChatMessage.getSpeaker({ actor: masterActor }),
                 flavor: `<strong>Sanguine Return</strong>`,
                 content: `<div style="background: rgba(0,0,0,0.3); padding: 6px; border-radius: 4px; border-left: 4px solid #ef4444;"><p style="margin: 0; font-size: 0.95em;">A thrall falls, and its infused blood rushes back to <b>${masterActor.name}</b>, restoring <b>${actualHealed} HP</b>.</p></div>`
@@ -669,7 +670,7 @@ Hooks.on("deleteToken", async (tokenDoc) => {
     // Flesh Fascination: Gory Terrain
     if (masterActor.items.some(i => i.slug === "flesh" || i.name === "Flesh")) {
         const tX = tokenDoc.x, tY = tokenDoc.y, tW = tokenDoc.width || 1, tH = tokenDoc.height || 1;
-        await ChatMessage.create({
+        await createNecroCard({
             speaker: ChatMessage.getSpeaker({ actor: masterActor }),
             flavor: `<strong>Flesh Fascination</strong>`,
             content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #9ca3af;"><p style="margin: 0 0 6px 0;"><b>${tokenDoc.name}</b> collapses into a heap of grotesque meat.</p><p style="margin: 0 0 8px 0; font-size: 0.9em; color: #ccc;">Do you want to leave behind difficult terrain (10 minutes)?</p><div style="text-align: center;"><button type="button" class="flesh-terrain-btn" data-x="${tX}" data-y="${tY}" data-w="${tW}" data-h="${tH}" data-master="${masterActor.id}" style="background: #1f2937; color: #d1d5db; border: 1px solid #4b5563; padding: 4px 8px; border-radius: 4px; cursor: pointer;"><i class="fas fa-spider"></i> Leave Gory Remains</button></div></div>`
@@ -861,7 +862,7 @@ Hooks.on("createChatMessage", async (message) => {
                             });
                         }
 
-                        await ChatMessage.create({
+                        await createNecroCard({
                             speaker: ChatMessage.getSpeaker({ actor }),
                             flavor: `<strong>Draining Strike</strong>`,
                             content: `<p><b>${actor.name}</b> destroys <b>${names}</b>, funneling their stolen vitality to recover <b>${actualHealed} HP</b>!</p>`
@@ -907,7 +908,7 @@ Hooks.on("createItem", async (item, _options, userId) => {
             const resolvePuppetHP = async () => {
                 if (actor.system.attributes.hp.max >= 200) {
                     await actor.update({ "system.attributes.hp.value": 200 });
-                    await ChatMessage.create({
+                    await createNecroCard({
                         speaker: ChatMessage.getSpeaker({ actor }),
                         flavor: `<strong>Final Union: Puppeted Corpse</strong>`,
                         content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #4ade80;"><p style="margin: 0 0 4px 0;"><b>${actor.name}</b> has fallen, but the heroic spirit refuses to abandon the body!</p><p style="margin: 0; font-size: 0.95em;">The corpse rises as an undead object with <b>200 HP</b> (Broken Threshold 100).</p></div>`
@@ -942,7 +943,7 @@ Hooks.on("updateActor", async (actor, changes) => {
 
     if (actor.items.some(i => i.getFlag("necromancer-thrall-helper", "isReanimatedFoe"))) {
         await deadToken.document.delete();
-        return ChatMessage.create({
+        return createNecroCard({
             speaker: ChatMessage.getSpeaker({ actor }),
             flavor: `<strong>Reanimated Foe Destroyed</strong>`,
             content: `<p>The unstable magic holding <b>${actor.name}</b> together violently collapses. It crumbles to dust!</p>`
@@ -954,7 +955,7 @@ Hooks.on("updateActor", async (actor, changes) => {
     if (hasDesperateRevival && !actor.getFlag("necromancer-thrall-helper", "desperateRevivalUsed") && !actor.getFlag("necromancer-thrall-helper", "revivalPrompted")) {
         await actor.setFlag("necromancer-thrall-helper", "revivalPrompted", true);
         setTimeout(() => actor.unsetFlag("necromancer-thrall-helper", "revivalPrompted"), 10000);
-        return ChatMessage.create({
+        return createNecroCard({
             speaker: ChatMessage.getSpeaker({ actor }),
             flavor: `<strong>Desperate Revival Triggered!</strong>`,
             content: `<div style="background: rgba(0,0,0,0.35); padding: 10px; border-radius: 4px; border-left: 4px solid #ef4444;"><p style="margin: 0 0 6px 0;"><b>${actor.name}</b> is on the verge of death!</p><p style="margin: 0 0 8px 0; font-size: 0.95em;">Spend your reaction to avoid being knocked out, remain at 1 HP, and unleash a <b>60-foot life-draining emanation</b>?</p><div style="text-align: center;"><button type="button" class="desperate-revival-trigger-btn" data-necro-id="${actor.id}" style="background: #450a0a; color: #f87171; border: 1px solid #ef4444; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold;"><i class="fas fa-heartbeat"></i> Trigger Desperate Revival (1/Day)</button></div></div>`
@@ -982,7 +983,7 @@ Hooks.on("updateActor", async (actor, changes) => {
         if (hasNecroticBlood) await hasNecroticBlood.delete();
         const size = actor.system?.traits?.size?.value || "med";
         const sizeLabel = { sm: "Small", lg: "Large", huge: "Huge", grg: "Gargantuan" }[size] || "Medium";
-        await ChatMessage.create({
+        await createNecroCard({
             speaker: ChatMessage.getSpeaker({ actor: plagueMaster }),
             flavor: `<strong>Necrotic Blood Trigger!</strong>`,
             content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #880000;"><p style="margin: 0 0 4px 0;"><b>${actor.name}</b> has succumbed to the necrotic plague!</p><p style="margin: 0; font-size: 0.9em;">The infected blood congeals into a new thrall.</p><div style="text-align: center; margin-top: 8px;"><button type="button" class="inevitable-return-btn" data-necro-id="${plagueMaster.id}" data-target-id="${deadToken.id}" data-size="${size}" style="background: #220033; color: #c084fc; border: 1px solid #7c3aed; padding: 5px 8px; border-radius: 4px; cursor: pointer;"><i class="fas fa-ghost"></i> Sprout Thrall (${sizeLabel})</button></div></div>`
@@ -1016,7 +1017,7 @@ Hooks.on("updateActor", async (actor, changes) => {
         btns += `</div>`;
 
         globalThis.NecroThrallHelper.lastDeathReaction = Date.now();
-        await ChatMessage.create({
+        await createNecroCard({
             speaker: ChatMessage.getSpeaker({ actor: nActor }),
             flavor: `<strong>Death Reaction Triggered!</strong>`,
             content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #a855f7;"><p style="margin: 0 0 4px 0;"><b>${deadToken.name}</b> has fallen within 30 feet of <b>${necro.name}</b>.</p><p style="margin: 0; font-size: 0.9em; color: #ccc;">Choose a reaction to harvest the death:</p>${btns}</div>`
@@ -1052,7 +1053,7 @@ Hooks.on("necroHelperDamageApplied", async (actor, options) => {
         if (getTokenDistance(necroToken, targetToken) <= 30) {
             const necroLevel = necroToken.actor.level || 1;
             globalThis.NecroThrallHelper.lastBleedReaction = Date.now();
-            await ChatMessage.create({
+            await createNecroCard({
                 speaker: ChatMessage.getSpeaker({ actor: necroToken.actor }),
                 flavor: `<strong>Blood Pool Reaction Trigger!</strong>`,
                 content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #b91c1c;"><p style="margin: 0 0 5px 0;"><b>${targetToken.name}</b> takes bleed damage within 30 feet of <b>${necroToken.name}</b>.</p><p style="margin: 0 0 8px 0; font-size: 0.95em;">Pool their spilled lifeblood to grant <b>${necroLevel} HP</b> to an ally?</p><div class="death-reaction-actions" style="text-align: center;"><button type="button" class="blood-pool-spawn-btn" data-is-bleed="true" data-necro-id="${necroToken.actor.id}" data-target-id="${targetToken.id}" style="background: #3a0000; color: #f87171; border: 1px solid #b91c1c; padding: 4px 8px; border-radius: 4px; cursor: pointer;"><i class="fas fa-tint"></i> Create Blood Pool</button></div></div>`
@@ -1499,7 +1500,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
                 if (!sacrificedThrall) return;
                 await message.update({ "flags.necromancer-thrall-helper.limbsActivated": true, "flags.necromancer-thrall-helper.sacrificedThrallId": sacrificedThrall.id, [`flags.aoe-easy-resolve.targets.-=${sacrificedThrall.id}`]: null });
                 await executeDelete(sacrificedThrall.id);
-                await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: game.actors.get(casterId) }), flavor: `<strong>Grasping Limbs Activated!</strong>`, content: `<p><b>${sacrificedThrall.name}</b> dissolves into the fleshy wave! Enemies in the cone must now succeed at a Fortitude save or become Immobilized.</p>` });
+                await createNecroCard({ speaker: ChatMessage.getSpeaker({ actor: game.actors.get(casterId) }), flavor: `<strong>Grasping Limbs Activated!</strong>`, content: `<p><b>${sacrificedThrall.name}</b> dissolves into the fleshy wave! Enemies in the cone must now succeed at a Fortitude save or become Immobilized.</p>` });
             };
             if (availableThralls.length === 1) consume(availableThralls[0]);
             else {
@@ -1525,7 +1526,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
                 });
                 await message.update(updates);
                 await executeDelete(sacrificedThrall.id);
-                await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: game.actors.get(casterId) }), flavor: `<strong>Bone Armor Activated!</strong>`, content: `<p><b>${sacrificedThrall.name}</b> is consumed by the barrage! Allies in the blast zone take no damage and gain a +1 status bonus to AC until the start of the caster's next turn.</p>` });
+                await createNecroCard({ speaker: ChatMessage.getSpeaker({ actor: game.actors.get(casterId) }), flavor: `<strong>Bone Armor Activated!</strong>`, content: `<p><b>${sacrificedThrall.name}</b> is consumed by the barrage! Allies in the blast zone take no damage and gain a +1 status bonus to AC until the start of the caster's next turn.</p>` });
             };
             if (availableThralls.length === 1) consume(availableThralls[0]);
             else {
@@ -1741,7 +1742,7 @@ globalThis.NecroThrallHelper.handleBloodPoolTrigger = async (regionDoc, tokenObj
                         });
                     }
 
-                    await ChatMessage.create({
+                    await createNecroCard({
                         speaker: ChatMessage.getSpeaker({ actor }),
                         flavor: `<strong>Blood Pool Absorbed!</strong>`,
                         content: `<p><b>${tokenObj.name}</b> drinks the infused essence, recovering <b>${actualHealed} Hit Points</b>!</p>`
@@ -1794,7 +1795,7 @@ Hooks.on("deleteToken", async (tokenDoc, _options, userId) => {
                 for (const effect of recipientEffects) {
                     await effect.delete();
                     await t.actor.toggleRollOption("all", "song-of-the-soul-in-range", false);
-                    ChatMessage.create({
+                    createNecroCard({
                         speaker: ChatMessage.getSpeaker({ token: t }),
                         flavor: `<strong>Song of the Soul</strong>`,
                         content: `<p>The ethereal melody abruptly ends as the instrument is destroyed. <b>${t.name}'s</b> Fast Healing fades.</p>`
@@ -1904,7 +1905,7 @@ Hooks.on("pf2e.endTurn", async (combatant, combat) => {
 
             if (stage <= 0) {
                 await bloodEffect.delete();
-                return ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: targetActor, token: tokenDoc }), flavor: `<strong>Necrotic Blood Purged</strong>`, content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #4ade80;"><p><b><span style="color: #4ade80;">Success!</span></b> The disease has been completely purged from ${targetActor.name}'s system.</p></div>` });
+                return createNecroCard({ speaker: ChatMessage.getSpeaker({ actor: targetActor, token: tokenDoc }), flavor: `<strong>Necrotic Blood Purged</strong>`, content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #4ade80;"><p><b><span style="color: #4ade80;">Success!</span></b> The disease has been completely purged from ${targetActor.name}'s system.</p></div>` });
             }
 
             stage = Math.min(3, stage);
@@ -1930,7 +1931,7 @@ Hooks.on("pf2e.endTurn", async (combatant, combat) => {
     const calcEffect = targetActor.items.find(i => i.getFlag("necromancer-thrall-helper", "isCalcifying"));
     if (calcEffect && calcEffect.getFlag("necromancer-thrall-helper", "calcificationDC")) {
         setTimeout(async () => {
-            await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: targetActor, token: tokenDoc }), flavor: `<strong>Calcification Progression</strong>`, content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #e2e8f0;"><p style="margin: 0 0 4px 0;"><b>${targetActor.name}'s</b> flesh continues to solidify into pure bone!</p><p style="margin: 0; font-size: 0.9em; font-style: italic;">Rolling Fortitude Save vs DC ${calcEffect.getFlag("necromancer-thrall-helper", "calcificationDC")} (Incapacitation)...</p></div>` });
+            await createNecroCard({ speaker: ChatMessage.getSpeaker({ actor: targetActor, token: tokenDoc }), flavor: `<strong>Calcification Progression</strong>`, content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #e2e8f0;"><p style="margin: 0 0 4px 0;"><b>${targetActor.name}'s</b> flesh continues to solidify into pure bone!</p><p style="margin: 0; font-size: 0.9em; font-style: italic;">Rolling Fortitude Save vs DC ${calcEffect.getFlag("necromancer-thrall-helper", "calcificationDC")} (Incapacitation)...</p></div>` });
 
             const saveResult = await targetActor.saves.fortitude.roll({ dc: { value: calcEffect.getFlag("necromancer-thrall-helper", "calcificationDC") }, item: calcEffect, extraRollOptions: ["incapacitation"] });
             if (!saveResult) return;
@@ -1961,7 +1962,7 @@ Hooks.on("pf2e.endTurn", async (combatant, combat) => {
                     outcomeHtml = `<p><b><span style="color: #ef4444;">${dosNum === 0 ? "Critical Failure!" : "Failure!"}</span></b> Slowed increases by ${inc}. Now <b>Slowed ${curSlow}</b>.</p>`;
                 }
             }
-            await ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: targetActor, token: tokenDoc }), flavor: `<strong>Calcification Result</strong>`, content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #ef4444;">${outcomeHtml}</div>` });
+            await createNecroCard({ speaker: ChatMessage.getSpeaker({ actor: targetActor, token: tokenDoc }), flavor: `<strong>Calcification Result</strong>`, content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #ef4444;">${outcomeHtml}</div>` });
         }, 1000);
     }
 });
@@ -1989,7 +1990,7 @@ Hooks.on("pf2e.startTurn", async (combatant) => {
                 pixels = (newRadius / gridDist) * gridSize;
                 await updateIfExists(canvas.scene.regions.find(r => r.getFlag("necromancer-thrall-helper", "anchorId") === anchor.id), { shapes: [{ type: "ellipse", hole: false, x: cX, y: cY, radiusX: pixels, radiusY: pixels, rotation: 0 }] });
                 await updateIfExists(canvas.scene.drawings.find(d => d.getFlag("necromancer-thrall-helper", "anchorId") === anchor.id), { x: cX - pixels, y: cY - pixels, shape: { type: "e", width: pixels * 2, height: pixels * 2 } });
-                ChatMessage.create({ speaker: ChatMessage.getSpeaker({ actor: combatant.actor }), content: `<p><strong>Zombie Horde Expands!</strong> The horde consumes ${thralls.length} thrall(s), swelling its radius to ${newRadius} feet!</p>` });
+                createNecroCard({ speaker: ChatMessage.getSpeaker({ actor: combatant.actor }), content: `<p><strong>Zombie Horde Expands!</strong> The horde consumes ${thralls.length} thrall(s), swelling its radius to ${newRadius} feet!</p>` });
             }
         }
     }
@@ -2032,7 +2033,7 @@ Hooks.on("createToken", async (tokenDoc, _options, userId) => {
 
         if (lastUsed !== currentRound) {
             await masterActor.setFlag("necromancer-thrall-helper", "teamworkRound", currentRound);
-            await ChatMessage.create({
+            await createNecroCard({
                 speaker: ChatMessage.getSpeaker({ actor: masterActor }),
                 flavor: `<strong>Thrall Teamwork</strong>`,
                 content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #8a2be2;"><p style="margin: 0;"><b>${masterActor.name}</b> coordinates with the newly risen dead!</p><p style="margin: 4px 0 0 0; font-size: 0.9em;">Take a melee Strike as a <b>Free Action</b> against an enemy within your reach that is adjacent to at least one of your thralls.</p></div>`
@@ -2139,7 +2140,7 @@ globalThis.NecroThrallHelper.checkNightmareHaunt = async (nightmareTokenDoc, spe
         saveDC: spellDC
     });
 
-    await ChatMessage.create({
+    await createNecroCard({
         speaker: ChatMessage.getSpeaker({ actor: masterActor }),
         flavor: `<strong>Recurring Nightmare: Invasive Terror!</strong>`,
         content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #38bdf8;"><p style="margin: 0 0 5px 0;"><b>${nightmareTokenDoc.name}</b> occupies the space of occupying creatures!</p><p style="margin: 0; font-size: 0.95em;">Creatures sharing its space must attempt a <b>DC ${spellDC} Will save</b> or become <b>Frightened 1</b> (<b>Frightened 2</b> on a Critical Failure).</p><hr>${htmlContent}</div>`,

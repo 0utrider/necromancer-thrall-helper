@@ -3,6 +3,7 @@ import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export async function executeMuscleBarrier({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -53,7 +54,7 @@ export async function executeMuscleBarrier({ actor, tokenDoc }) {
                     await targetActor.createEmbeddedDocuments("Item", [effectData]);
                     await executeDelete(tokenDoc.id);
 
-                    await ChatMessage.create({
+                    await createNecroCard({
                         speaker: ChatMessage.getSpeaker({ actor }),
                         flavor: `<strong>Muscle Barrier</strong>`,
                         content: `<p><b>${actor.name}</b> splits <b>${tokenDoc.name}</b> apart, flinging the thick slabs of animated muscle onto <b>${targetDoc.name}</b>! They gain <b>${tempHP} Temp HP</b> and a +1 status bonus to Athletics.</p>`

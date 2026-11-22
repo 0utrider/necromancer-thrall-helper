@@ -5,6 +5,7 @@ import { canThrallDealVitality, getSpellDC, getTokenDistance } from "./spell-hel
 import { getNecroEffect, findNecroEffects } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
 import { transientFlags, oneStrikeDuration, watchStrikeCleanup, deleteIfExists } from "../system/transient-effects.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 /** Attack bonus and dice count for a Thrall Strike, from the necromancer's current level. */
 function thrallStrikeStats(actor) {
@@ -327,7 +328,7 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId
 
         const kamikazeNotice = isKamikaze ? `<p style="color: #ff6b6b; font-weight: bold; text-align: center; margin-bottom: 5px; border: 1px dashed #ff6b6b; padding: 2px;">[Kamikaze Active: Use the 'Dismiss' button on the Command Deck to destroy this thrall when damage is resolved]</p>` : ``;
 
-        await ChatMessage.create({
+        await createNecroCard({
             speaker: ChatMessage.getSpeaker({ actor }),
             flavor: `<strong>Conglomerate Grab!</strong>`,
             content: `

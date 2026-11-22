@@ -9,7 +9,7 @@ import { findNecroEffect } from "./effect-catalog.js";
 // of its first damage instance.
 
 const MODULE = "necromancer-thrall-helper";
-const BASE = "#404047";
+const CARD_BASE = "#404047";
 const TINT = { vitality: 22 };
 const SPELLS = new Set([
     "Bone Spear", "Dead Weight", "Blood Infusion", "Flesh Tsunami", "Temporary Possession", "Calcification",
@@ -36,15 +36,23 @@ const strikeArt = (type) => {
 const esc = (v) => foundry.utils.escapeHTML(String(v ?? ""));
 const mix = (color, percent, base) => `color-mix(in srgb,${color} ${percent}%,${base})`;
 
+// Card background. The tint fades to graphite within the header, so the dice boxes and icons sit on a dark card.
+const cardBackground = (c, top) =>
+    `radial-gradient(110% 80% at 100% 100%,${mix(c, 14, "transparent")},transparent 60%),` +
+    `linear-gradient(180deg,${mix(c, top, CARD_BASE)} 0%,${mix(c, Math.round(top * 0.43), CARD_BASE)} 10%,${CARD_BASE} 22%)`;
+// Per-type backgrounds that replace the default. Void: black at the top, sinking into the abyss purple.
+const CARD_BACKGROUNDS = {
+    void: (c) => `linear-gradient(180deg,#000 0%,#07050d 30%,${mix(c, 30, "#000")} 75%,${mix(c, 55, "#000")} 100%)`
+};
+
 function chatCss() {
     return Object.entries(CARD_COLORS).map(([t, c]) => {
-        const icon = DMG_COLORS[t];
+        const icon = DMG_COLORS[t] ?? c;
         const sel = `li.chat-message:has(.nth-fx[data-type="${t}"])`;
         const top = TINT[t] ?? 28;
-        const ink = t === "vitality" ? "#ffffff" : mix(c, 65, "#fff");
+        const ink = t === "vitality" ? "#ffffff" : mix(c, t === "void" ? 40 : 65, "#fff"); // dark void needs a lighter title
         return `${sel}{border:2px solid ${c};border-radius:8px;color:#ececef;` +
-            `background:radial-gradient(110% 80% at 100% 100%,${mix(c, 14, "transparent")},transparent 60%),` +
-            `linear-gradient(180deg,${mix(c, top, BASE)} 0%,${mix(c, Math.round(top * 0.43), BASE)} 22%,${BASE} 40%) !important;` +
+            `background:${(CARD_BACKGROUNDS[t] ?? ((x) => cardBackground(x, top)))(c)} !important;` +
             `box-shadow:0 0 8px ${mix(c, 55, "transparent")},inset 0 0 6px ${mix(c, 30, "transparent")}}` +
             `${sel} .message-header{border-bottom:1px solid ${mix(c, 70, "transparent")}}` +
             `${sel} .message-header, ${sel} .flavor-text, ${sel} .message-content{color:#ececef}` +
@@ -52,13 +60,14 @@ function chatCss() {
             `${sel} .card-header h3{color:${ink};text-shadow:0 0 1px ${c}, 0 0 6px ${c}66;font-weight:bold}` +
             `${sel} h4.action, ${sel} h4.action strong{color:#ececef}` +
             `${sel} h4.message-sender{color:#ececef}` +
+            `${sel} .message-content :is(h1,h2,h3):not(.card-header h3){color:#ececef;border-color:${mix(c, 50, "transparent")}}` +
             `${sel} .message-content button{color:#ececef;background:rgba(255,255,255,.07);border:1px solid ${mix(c, 45, "#555")};box-shadow:none}` +
             `${sel} .message-content button:hover{background:${mix(c, 22, "transparent")};border-color:${c};box-shadow:0 0 4px ${mix(c, 50, "transparent")}}` +
             `${sel} .message-content button.critical-success{color:${ink}}` +
-            `${sel} .dice-formula{color:#ececef;background:rgba(0,0,0,.25);border:1px solid ${mix(c, 35, "transparent")}}` +
-            `${sel} .dice-total{background:rgba(0,0,0,.3);border:1px solid ${mix(c, 50, "transparent")}}` +
+            `${sel} .dice-formula{color:#ececef;background:rgba(0,0,0,.5);border:1px solid ${mix(c, 35, "transparent")}}` +
+            `${sel} .dice-total{background:rgba(0,0,0,.5);border:1px solid ${mix(c, 50, "transparent")}}` +
             `${sel} .dice-total:not([class*="success"]):not([class*="failure"]){color:#fff}` +
-            `${sel} .dice-tooltip .tooltip-part{background:rgba(0,0,0,.2);border-color:${mix(c, 30, "transparent")}}` +
+            `${sel} .dice-tooltip .tooltip-part{background:rgba(0,0,0,.4);border-color:${mix(c, 30, "transparent")}}` +
             `${sel} :is(.degree-of-success, .dice-total) :is(.critical-success, .criticalSuccess), ${sel} .dice-total:is(.critical-success, .criticalSuccess){color:#5fd87a}` +
             `${sel} .degree-of-success .success, ${sel} .dice-total.success{color:#7fb4ff}` +
             `${sel} .degree-of-success .failure, ${sel} .dice-total.failure{color:#ffa64d}` +
@@ -66,7 +75,7 @@ function chatCss() {
             `${sel} .dice-tooltip :is(.part-formula, .part-total, .part-header){color:#ececef}` +
             `${sel} :is(.damage.instance, .tooltip-part.damage){color:#ececef}` +
             `${sel} :is(.damage.instance, .tooltip-part.damage) i{color:${icon}}` +
-            `${sel} [data-visibility="gm"]{color:#ececef;background:${mix(c, 22, "transparent")};border-radius:3px}` +
+            `${sel} [data-visibility="gm"]:not(.dice-formula){color:#ececef;background:${mix(c, 22, "transparent")};border-radius:3px}` +
             `${sel} .message-content hr{border-color:${mix(c, 50, "transparent")};background:${mix(c, 50, "transparent")}}` +
             `${sel} h4.action i.nth-ico{color:${icon};text-shadow:0 0 1px #000;font-size:1.35em;vertical-align:-.12em;margin-left:.15em}` +
             `${sel} .nth-head img{border:none;object-fit:cover}` +
@@ -97,7 +106,18 @@ function strikeHeader(tokenDoc, item, type) {
     };
 }
 
+// A card the module posted without a roll (Conglomerate Grab, "Bone Armor Activated!", spawn notes...).
+function decorateNecroCard(doc) {
+    if (!doc.flags?.[MODULE]?.card || (doc.flavor ?? "").includes("nth-fx") || (doc.content ?? "").includes("nth-fx")) return;
+    doc.updateSource({ flavor: `<span class="nth-fx" data-type="necro" data-kind="card" hidden></span>${doc.flavor ?? ""}` });
+}
+
 function decorateNecroMessage(doc) {
+    decorateRollCard(doc);
+    try { decorateNecroCard(doc); } catch (err) { console.warn("Necromancer Thrall Helper | Chat card styling skipped:", err); }
+}
+
+function decorateRollCard(doc) {
     try {
         const ctx = doc.flags?.pf2e?.context;
         if (!["attack-roll", "damage-roll"].includes(ctx?.type)) return;
@@ -144,6 +164,12 @@ li.chat-message .card-header.nth-head > h3 {
   font-size:var(--font-size-16,16px); line-height:1.15; overflow-wrap:anywhere; }`;
 
 export function registerStrikeArtSetting() {
+    game.settings.register(MODULE, "chatCardColors", {
+        name: "Color chat cards",
+        hint: "Color Thrall Strike, spell and module chat cards by damage type. Turn off to see them in your normal chat style (the header art stays). Applies to this browser only.",
+        scope: "client", config: true, type: Boolean, default: true,
+        onChange: (on) => applyChatCss(on)
+    });
     game.settings.register(MODULE, "strikeCardArt", {
         name: "Thrall Strike card art",
         hint: "Art in the header of Thrall Strike attack cards: Outrider's Dramatis art by damage type, or Foundry icons.",
@@ -159,13 +185,18 @@ function checkDramatisArt() {
     img.src = STRIKE_ART.physical;
 }
 
-/** Registers the card decorator and its per-type CSS. Called at ready on every client. */
-export function registerNecroChatFx() {
-    checkDramatisArt();
+/** Inject (or remove) the per-type card colors. The header layout CSS stays either way. */
+function applyChatCss(colors) {
     document.getElementById("nth-chat-css")?.remove();
     const style = document.createElement("style");
     style.id = "nth-chat-css";
-    style.textContent = chatCss() + HEAD_CSS;
+    style.textContent = (colors ? chatCss() : "") + HEAD_CSS;
     document.head.append(style);
+}
+
+/** Registers the card decorator and its per-type CSS. Called at ready on every client. */
+export function registerNecroChatFx() {
+    checkDramatisArt();
+    applyChatCss(game.settings.get(MODULE, "chatCardColors"));
     Hooks.on("preCreateChatMessage", decorateNecroMessage);
 }

@@ -3,6 +3,7 @@ import { notify } from "../system/notify.js";
 import { getTokenDistance, getActorThrallTokens } from "./spell-helpers.js";
 import { getNecroEffect, findNecroEffect } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 async function applyBodyShieldSacrifice(actor, tokenDoc) {
     const necroLevel = actor.level || 1;
@@ -13,7 +14,7 @@ async function applyBodyShieldSacrifice(actor, tokenDoc) {
 
     await executeDelete(tokenDoc.id);
 
-    await ChatMessage.create({
+    await createNecroCard({
         speaker: ChatMessage.getSpeaker({ actor }),
         flavor: `<strong>Body Shield Reaction!</strong>`,
         content: `
@@ -56,7 +57,7 @@ export async function executeConsumeThrall({ actor, tokenDoc }) {
                     const currentFocus = actor.system?.resources?.focus?.value || 0;
                     await actor.update({ "system.resources.focus.value": currentFocus + 1 });
 
-                    await ChatMessage.create({
+                    await createNecroCard({
                         speaker: ChatMessage.getSpeaker({ actor }),
                         flavor: `<strong>Consume Thrall</strong>`,
                         content: `<p><b>${actor.name}</b> consumes the animus of <b>${tokenDoc.name}</b>, regaining 1 Focus Point (restricted to grave spells).</p>`
@@ -252,7 +253,7 @@ export function bindHeaderUtilityButtons(deck, html) {
                                 }
                             }
 
-                            await ChatMessage.create({
+                            await createNecroCard({
                                 speaker: ChatMessage.getSpeaker({ actor }),
                                 flavor: `<strong>Reclaim Power</strong>`,
                                 content: chatContent
@@ -291,7 +292,7 @@ export function bindHeaderUtilityButtons(deck, html) {
                 if (tDoc.actor) await tDoc.actor.createEmbeddedDocuments("Item", [effectData]);
             }
 
-            await ChatMessage.create({
+            await createNecroCard({
                 speaker: ChatMessage.getSpeaker({ actor }),
                 flavor: `<strong>Collateral Reinforcement</strong>`,
                 content: `<p><b>${actor.name}</b> thickens the bone and flesh of their minions! All active thralls are immune to area and splash damage for 1 round.</p>`

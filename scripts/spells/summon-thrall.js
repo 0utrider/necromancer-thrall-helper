@@ -4,6 +4,7 @@ import { notify, placementHint } from "../system/notify.js";
 import { effectColorNum } from "../system/effect-colors.js";
 import { attachGhostHUD, buildOwnerMap } from "./spell-helpers.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
+import { createNecroCard } from "../system/necro-card.js";
 
 export function bindSummonThrallButtons(deck, html) {
     // 1. Standard Create Thrall Buttons (Spawn 1 / 2 / 3 / 4)
@@ -155,7 +156,7 @@ export function bindSummonThrallButtons(deck, html) {
                                     if (combatRoundKey) {
                                         await actor.setFlag("necromancer-thrall-helper", "proliferationRound", combatRoundKey);
                                     }
-                                    await ChatMessage.create({
+                                    await createNecroCard({
                                         speaker: ChatMessage.getSpeaker({ actor }),
                                         content: `<p><strong>Thrall Proliferation!</strong> <b>${actor.name}</b> twists the magic to spawn an additional thrall this round.</p>`
                                     });
@@ -218,7 +219,7 @@ export function bindSummonThrallButtons(deck, html) {
                             const presetId = dHtml.find("#army-preset").val();
                             await actor.setFlag("necromancer-thrall-helper", "instantArmyUsed", true);
 
-                            await ChatMessage.create({
+                            await createNecroCard({
                                 speaker: ChatMessage.getSpeaker({ actor }),
                                 flavor: `<strong>Instant Army</strong>`,
                                 content: `<div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #9333ea;"><p style="margin: 0;"><b>${actor.name}</b> tears the veil, calling upon an emergency reserve of the dead!</p><p style="margin: 4px 0 0 0; font-size: 0.9em; color: #d8b4fe;">Up to 20 thralls emerge from the grave.</p></div>`
