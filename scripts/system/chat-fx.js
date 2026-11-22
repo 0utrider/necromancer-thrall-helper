@@ -21,7 +21,7 @@ const SPELLS = new Set([
 // David's Dramatis art for Strike cards, by damage type. Falls back to Foundry icons when the setting
 // says so, the type has no art, or the art can't be loaded (checked once at ready, on the rolling client).
 const STRIKE_ART = {
-    physical: "https://0utrider.github.io/dramatis/kingmaker/radomir/fx/thrall-strike.webp",
+    physical: "https://0utrider.github.io/dramatis/icons/abilities/thrall-strike-physical.webp",
     spirit: "https://0utrider.github.io/dramatis/icons/abilities/thrall-strike-spirit.webp",
     vitality: "https://0utrider.github.io/dramatis/icons/abilities/thrall-strike-vitality.webp",
     void: "https://0utrider.github.io/dramatis/icons/abilities/thrall-strike-void.webp"
