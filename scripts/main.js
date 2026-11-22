@@ -153,7 +153,9 @@ Hooks.once("ready", () => {
     globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
     globalThis.NecroThrallHelper.checkIcons = checkIcons; // dev check: await NecroThrallHelper.checkIcons()
     setupEffectColorHooks();
-    Hooks.on("canvasReady", () => dedupeSceneThrallStrikes().catch(err => console.warn("Necromancer Thrall Helper | Strike dedupe failed:", err)));
+    const dedupe = () => dedupeSceneThrallStrikes().catch(err => console.warn("Necromancer Thrall Helper | Strike dedupe failed:", err));
+    Hooks.on("canvasReady", dedupe);
+    if (canvas.ready) dedupe();
     repairWorldThrallArt().catch(err => console.warn("Necromancer Thrall Helper | Could not repair thrall art:", err));
     sweepEmptyRegions().catch(err => console.warn("Necromancer Thrall Helper | Region sweep failed:", err));
     checkBrowsePermissions().catch(err => console.warn("Necromancer Thrall Helper | Permission check failed:", err));
