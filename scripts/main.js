@@ -1,6 +1,6 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
 import { dedupeSceneThrallStrikes } from "./spells/thrall-strike.js";
-import { registerNecroChatFx } from "./system/chat-fx.js";
+import { registerNecroChatFx, registerStrikeArtSetting } from "./system/chat-fx.js";
 import { setupTransientEffectHooks } from "./system/transient-effects.js";
 import { resolveNecromancer, resolveNecromancerOrNotify, setupResolveHooks } from "./system/necro-resolve.js";
 import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
@@ -47,6 +47,7 @@ Hooks.once("setup", function () {
 
 Hooks.once("init", () => {
     console.log("Necromancer Thrall Helper | Initializing the dark arts...");
+    registerStrikeArtSetting();
 
     game.keybindings.register("necromancer-thrall-helper", "toggleCommandDeck", {
         name: "Toggle Thrall Command Deck",

@@ -1,5 +1,4 @@
 import { DMG_COLORS, CARD_COLORS, DMG_ICONS } from "./dmg-palette.js";
-import { tokenPortrait } from "./thrall-manager.js";
 import { findNecroEffect } from "./effect-catalog.js";
 
 // Chat cards for thrall Strikes and necromancer spells: graphite card, border in the damage type's
@@ -18,6 +17,21 @@ const SPELLS = new Set([
     "Bloody Tendrils", "Recurring Nightmare", "Blossoming Gore", "Blossoming Gore Hazard", "Conglomerate Grab",
     "Song of the Soul", "Amalgamate", "Reanimate Foe", "Living Graveyard"
 ]);
+
+// David's Dramatis art for Strike cards, by damage type. Falls back to Foundry icons when the setting
+// says so, the type has no art, or the art can't be loaded (checked once at ready, on the rolling client).
+const STRIKE_ART = {
+    physical: "https://0utrider.github.io/dramatis/kingmaker/radomir/fx/thrall-strike.webp",
+    spirit: "https://0utrider.github.io/dramatis/icons/abilities/thrall-strike-spirit.webp",
+    vitality: "https://0utrider.github.io/dramatis/icons/abilities/thrall-strike-vitality.webp",
+    void: "https://0utrider.github.io/dramatis/icons/abilities/thrall-strike-void.webp"
+};
+const CHARGE_FALLBACK_ICON = "icons/magic/death/undead-ghost-strike-white.webp";
+let dramatisReachable = false;
+const strikeArt = (type) => {
+    if (!dramatisReachable || game.settings.get(MODULE, "strikeCardArt") !== "dramatis") return null;
+    return STRIKE_ART[["bludgeoning", "piercing", "slashing"].includes(type) ? "physical" : type] ?? null;
+};
 
 const esc = (v) => foundry.utils.escapeHTML(String(v ?? ""));
 const mix = (color, percent, base) => `color-mix(in srgb,${color} ${percent}%,${base})`;
@@ -61,15 +75,15 @@ function chatCss() {
 }
 
 const isStrikeItem = (item) => item?.system?.slug === "thrall-strike" || /^Thrall Strike/.test(item?.name ?? "");
-const usableArt = (src) => src && !/\.(webm|mp4|m4v)$/i.test(src) && !src.includes("*") ? src : null;
 
-/** Header art and title for a Thrall Strike attack card. */
-function strikeHeader(tokenDoc, item) {
+/** Header art and title for a Thrall Strike attack card (the speaker line already names the thrall). */
+function strikeHeader(tokenDoc, item, type) {
     const charge = findNecroEffect(tokenDoc.actor, "thrallCharge");
     const kamikaze = !!charge && (/kamikaze/i.test(charge.name)
         || charge.system?.rules?.some(r => r.key === "ChoiceSet" && r.selection === "yes"));
     const title = kamikaze ? "💀 Kamikaze Charge" : charge ? "Thrall Charge" : "Thrall Strike";
-    const art = usableArt(tokenDoc.flags?.[MODULE]?.portrait) ?? usableArt(tokenPortrait(tokenDoc)) ?? usableArt(tokenDoc.texture?.src) ?? item.img;
+    const fallback = charge ? CHARGE_FALLBACK_ICON : item.img;
+    const art = strikeArt(type) ?? fallback;
     let tags = "";
     if (charge) {
         const dice = charge.flags?.[MODULE]?.chargeDice;
@@ -78,7 +92,7 @@ function strikeHeader(tokenDoc, item) {
         tags = `<div class="tags" style="margin:2px 0 4px">${tags}</div>`;
     }
     return {
-        html: `<header class="card-header flexrow nth-head"><img src="${esc(art)}" width="48" height="48"><h3>${esc(tokenDoc.name)} · ${esc(title)}</h3></header>`,
+        html: `<header class="card-header flexrow nth-head"><img src="${esc(art)}" width="48" height="48" onerror="this.onerror=null;this.src='${esc(fallback)}'"><h3>${esc(title)}</h3></header>`,
         tags
     };
 }
@@ -110,7 +124,7 @@ function decorateNecroMessage(doc) {
             const icon = DMG_ICONS[type] ?? "burst";
             flavor = flavor.replace(/(<h4 class="action">[\s\S]*?)(<\/strong>)/,
                 `$1 <i class="fa-solid fa-${icon} nth-ico" data-tooltip="${tip}"></i>$2`);
-            if (isStrike) ({ html: head, tags } = strikeHeader(tokenDoc, item));
+            if (isStrike) ({ html: head, tags } = strikeHeader(tokenDoc, item, type));
             else head = `<header class="card-header flexrow nth-head"><img src="${esc(item.img)}" width="48" height="48"><h3>${esc(item.name)}</h3></header>`;
         }
         doc.updateSource({ flavor: `<span class="nth-fx" data-type="${type}" data-kind="${ctx.type}" hidden></span>${head}${flavor}${tags}` });
@@ -119,12 +133,39 @@ function decorateNecroMessage(doc) {
     }
 }
 
+// Foundry's .flexrow > * gives every child flex:1, which stretches the art; pin it to 48px.
+const HEAD_CSS = `
+li.chat-message .card-header.nth-head { align-items:center; gap:8px; flex-wrap:nowrap; }
+li.chat-message .card-header.nth-head > img {
+  flex:0 0 48px !important; width:48px; height:48px; max-width:48px;
+  object-fit:cover; object-position:center; border-radius:4px; border:none; }
+li.chat-message .card-header.nth-head > h3 {
+  flex:1 1 auto !important; min-width:0; margin:0;
+  font-size:var(--font-size-16,16px); line-height:1.15; overflow-wrap:anywhere; }`;
+
+export function registerStrikeArtSetting() {
+    game.settings.register(MODULE, "strikeCardArt", {
+        name: "Thrall Strike card art",
+        hint: "Art in the header of Thrall Strike attack cards: Outrider's Dramatis art by damage type, or Foundry icons.",
+        scope: "world", config: true, type: String, default: "dramatis",
+        choices: { dramatis: "Dramatis", foundry: "Foundry icons" }
+    });
+}
+
+function checkDramatisArt() {
+    const img = new Image();
+    img.onload = () => { dramatisReachable = true; };
+    img.onerror = () => { dramatisReachable = false; };
+    img.src = STRIKE_ART.physical;
+}
+
 /** Registers the card decorator and its per-type CSS. Called at ready on every client. */
 export function registerNecroChatFx() {
+    checkDramatisArt();
     document.getElementById("nth-chat-css")?.remove();
     const style = document.createElement("style");
     style.id = "nth-chat-css";
-    style.textContent = chatCss();
+    style.textContent = chatCss() + HEAD_CSS;
     document.head.append(style);
     Hooks.on("preCreateChatMessage", decorateNecroMessage);
 }
