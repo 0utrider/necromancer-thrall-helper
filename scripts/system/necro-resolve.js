@@ -126,3 +126,40 @@ export async function resolveNecromancerOrNotify(opts) {
     if (!result.actor && result.reason !== "cancelled") notifyForce("warn", result.error);
     return result.actor ?? null;
 }
+
+/**
+ * GM-side: tag undead whose PF2e master is a necromancer with our masterId flag, so every
+ * thrall-finding path sees them (Conjurer of Corpses undead are not spawned by this module).
+ * Only the active GM writes, so several GM clients don't duplicate the update.
+ */
+export async function stampMasterTags(scene = canvas.scene, tokens = null) {
+    if (!game.users.activeGM?.isSelf || !scene) return;
+    const updates = [];
+    for (const t of tokens ?? scene.tokens) {
+        if (t.flags?.[MODULE_ID]?.masterId || !t.actor) continue;
+        const traits = t.actor.system?.traits?.value ?? [];
+        if (!traits.some(tr => typeof tr === "string" && tr.toLowerCase() === "undead")) continue;
+        const masterId = t.actor.getFlag("pf2e", "master")?.id;
+        const master = masterId ? game.actors.get(masterId) : null;
+        if (master && isNecromancer(master)) updates.push({ _id: t.id, [`flags.${MODULE_ID}.masterId`]: master.id });
+    }
+    if (updates.length) await scene.updateEmbeddedDocuments("Token", updates);
+}
+
+/** Re-target an open deck when the user selects another necromancer (or one of their thralls). */
+async function followSelection() {
+    const deck = foundry.applications.instances.get("thrall-command-deck");
+    if (!deck?.rendered || !game.settings.get(MODULE_ID, "followSelection")) return;
+    const { actor, reason } = await resolveNecromancer({ prompt: false });
+    if (actor && reason?.startsWith("controlled") && actor.id !== deck.necroId) deck.setNecromancer(actor.id);
+}
+
+export function setupResolveHooks() {
+    Hooks.on("createToken", (doc) => {
+        if (doc.parent) stampMasterTags(doc.parent, [doc]).catch(err => console.warn(`${MODULE_ID} | Master tagging failed:`, err));
+    });
+    Hooks.on("canvasReady", () => {
+        stampMasterTags().catch(err => console.warn(`${MODULE_ID} | Master tagging failed:`, err));
+    });
+    Hooks.on("controlToken", () => setTimeout(() => followSelection().catch(err => console.warn(err)), 0));
+}

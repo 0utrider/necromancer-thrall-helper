@@ -255,6 +255,16 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
         };
     }
 
+    /** Point the open deck at another necromancer and run the setup check for them. */
+    setNecromancer(necroId) {
+        if (!game.actors.get(necroId)) return;
+        this.necroId = necroId;
+        this.actionStates = {};
+        this.spiritStates = {};
+        this._spellcastingChecked = false;
+        return this.render({ force: true });
+    }
+
     /** Show the setup reminder if the user owns this Necromancer and hasn't suppressed it. */
     _checkSpellcasting() {
         const actor = game.actors.get(this.necroId);

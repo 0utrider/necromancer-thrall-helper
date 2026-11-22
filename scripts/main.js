@@ -1,5 +1,5 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
-import { resolveNecromancerOrNotify } from "./system/necro-resolve.js";
+import { resolveNecromancer, resolveNecromancerOrNotify, setupResolveHooks } from "./system/necro-resolve.js";
 import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
 import { checkBrowsePermissions } from "./system/permissions-notice.js";
@@ -10,7 +10,14 @@ import { notifyForce } from "./system/notify.js";
 async function toggleCommandDeck() {
     try {
         const existing = foundry.applications.instances.get("thrall-command-deck");
-        if (existing?.rendered) return existing.close();
+        if (existing?.rendered) {
+            // The same necromancer closes the deck; a different one that the selection points at swaps it.
+            const { actor: selected, reason } = await resolveNecromancer({ prompt: false });
+            if (selected && reason?.startsWith("controlled") && selected.id !== existing.necroId) {
+                return existing.setNecromancer(selected.id);
+            }
+            return existing.close();
+        }
 
         const actor = await resolveNecromancerOrNotify();
         if (!actor) return;
@@ -65,6 +72,15 @@ Hooks.once("init", () => {
         config: true,
         type: Boolean,
         default: true
+    });
+
+    game.settings.register("necromancer-thrall-helper", "followSelection", {
+        name: "Command Deck Follows Selection",
+        hint: "If enabled, an open Command Deck switches to another necromancer when you select that necromancer or one of their thralls (you must own them).",
+        scope: "world",
+        config: true,
+        type: Boolean,
+        default: false
     });
 
     game.settings.register("necromancer-thrall-helper", "pairWildcardFiles", {
@@ -131,6 +147,7 @@ Hooks.once("init", () => {
 Hooks.once("ready", () => {
     console.log("Necromancer Thrall Helper | Binding hooks.");
     setupHooks();
+    setupResolveHooks();
     setupEffectColorHooks();
     repairWorldThrallArt().catch(err => console.warn("Necromancer Thrall Helper | Could not repair thrall art:", err));
     sweepEmptyRegions().catch(err => console.warn("Necromancer Thrall Helper | Region sweep failed:", err));
