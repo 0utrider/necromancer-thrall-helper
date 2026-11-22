@@ -6,7 +6,7 @@
   "system": {
     "slug": "hazard-gory-remains",
     "description": {
-      "value": "<p>Granted by @UUID[Compendium.pf2e.feats-srd.Item.3SpiiD1fCCCxJQOk]{Blossoming Gore}</p><p>Tracks the duration of a Gory Remains difficult terrain hazard. Deleting this will clear the hazard from the map.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.classfeatures.Item.nJLKij2UY2nxVmb9]{Flesh}</p><p>Tracks the duration of a Gory Remains difficult terrain hazard. Deleting this will clear the hazard from the map.</p>"
     },
     "duration": {
       "sustained": false,
