@@ -1,4 +1,5 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
+import { resolveNecromancerOrNotify } from "./system/necro-resolve.js";
 import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
 import { setupSocket } from "./system/socket.js";
 import { checkBrowsePermissions } from "./system/permissions-notice.js";
@@ -6,39 +7,24 @@ import { sweepEmptyRegions } from "./system/region-sweep.js";
 import { setupEffectColorHooks } from "./system/effect-colors.js";
 import { notifyForce } from "./system/notify.js";
 
-function toggleCommandDeck() {
-    let isNecro = game.user.isGM;
-    const requireNecro = game.settings.get("necromancer-thrall-helper", "requireNecromancer");
-
-    if (!requireNecro) {
-        isNecro = true;
-    } else if (!isNecro && game.user.character) {
-        const actor = game.user.character;
-        isNecro = actor.items.some(i => {
-            const name = i.name.toLowerCase();
-            const slug = i.system?.slug || "";
-            if (name.includes("necro") || slug.includes("necro") || name.includes("reanimator") || name.includes("undead master")) return true;
-            if (name.includes("conjurer of corpses") || i.flags?.["necromancer-thrall-helper"]) return true;
-            return false;
-        });
-    }
-
-    if (!isNecro) {
-        return notifyForce("warn", "You lack the dark blood and discipline required to command the dead.");
-    }
-
+async function toggleCommandDeck() {
     try {
         const existing = foundry.applications.instances.get("thrall-command-deck");
-        if (existing?.rendered) {
-            existing.close();
-        } else if (existing) {
+        if (existing?.rendered) return existing.close();
+
+        const actor = await resolveNecromancerOrNotify();
+        if (!actor) return;
+
+        if (existing) {
+            existing.necroId = actor.id;
             existing.render({ force: true });
             existing.bringToFront?.();
         } else {
-            new ThrallCommandDeck().render(true);
+            new ThrallCommandDeck(actor.id).render(true);
         }
     } catch (e) {
-        console.warn("Necromancer Helper | Command Deck failed to open:", e);
+        console.error("Necromancer Helper | Command Deck failed to open:", e);
+        notifyForce("error", `The Command Deck failed to open: ${e?.message ?? e}`);
     }
 }
 

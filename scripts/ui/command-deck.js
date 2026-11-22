@@ -2,7 +2,8 @@ import "../system/necro-hooks.js";
 import { getFatalMethodName, tokenPortrait } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeDelete } from "../system/socket.js";
-import { notify, notifyForce } from "../system/notify.js";
+import { notify } from "../system/notify.js";
+import { userOwns } from "../system/necro-resolve.js";
 import { openDefaultLookDialog, openNecroSettingsDialog, openSpellcastingCheckDialog } from "./deck-dialogs.js";
 import { bindHeaderSpellButtons, THRALL_ACTIONS } from "../spells/index.js";
 import {
@@ -47,45 +48,9 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             necroId = null;
         }
 
-        if (!necroId) {
-            const controlled = canvas.tokens?.controlled[0]?.actor;
-            if (controlled) {
-                necroId = controlled.id;
-            } else if (game.user.character) {
-                necroId = game.user.character.id;
-            } else if (canvas.scene) {
-                const existingThrall = canvas.scene.tokens.find(t => t.flags?.["necromancer-thrall-helper"]?.masterId);
-                if (existingThrall) necroId = existingThrall.flags["necromancer-thrall-helper"].masterId;
-            } else if (game.user.isGM) {
-                const necro = game.actors.find(a => a.flags?.["necromancer-thrall-helper"]?.familyTree);
-                if (necro) {
-                    necroId = necro.id;
-                    notify("info", `Auto-assigned Command Deck to ${necro.name}.`);
-                }
-            }
-        }
-
-        if (!necroId) {
-            notify("warn", "No Necromancer found. Please select your token before opening the Command Deck.");
-            throw new Error("Command Deck aborted: No valid Necromancer target.");
-        }
-
-        const actor = game.actors.get(necroId);
-        const requireNecro = game.settings.get("necromancer-thrall-helper", "requireNecromancer");
-
-        if (actor && requireNecro) {
-            const isAuthorized = actor.items.some(i => {
-                const name = i.name.toLowerCase();
-                const slug = i.system?.slug || "";
-                if (name.includes("necro") || slug.includes("necro") || name.includes("reanimator") || name.includes("undead master")) return true;
-                if (name.includes("conjurer of corpses") || i.flags?.["necromancer-thrall-helper"]) return true;
-                return false;
-            });
-
-            if (!isAuthorized && !game.user.isGM) {
-                notifyForce("warn", "This mortal lacks the dark blood and discipline required to command the dead.");
-                throw new Error("Unauthorized Command Deck access.");
-            }
+        // The caller resolves and authorizes the necromancer (see resolveNecromancer).
+        if (!necroId || !game.actors.get(necroId)) {
+            throw new Error("Command Deck aborted: no necromancer was resolved.");
         }
 
         const savedPos = localStorage.getItem(`necro-deck-bounds-${game.user?.id}`);
@@ -295,8 +260,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
         const actor = game.actors.get(this.necroId);
         if (!actor || actor.getFlag("necromancer-thrall-helper", "suppressSpellcastingCheck")) return;
         // GMs implicitly own everything; only prompt them for characters they own explicitly.
-        const owns = game.user.isGM ? actor.ownership?.[game.user.id] === CONST.DOCUMENT_OWNERSHIP_LEVELS.OWNER : actor.isOwner;
-        if (!owns) return;
+        if (!userOwns(actor, { explicit: true })) return;
         openSpellcastingCheckDialog(actor, checkNecroSpellcasting(actor));
     }
 
