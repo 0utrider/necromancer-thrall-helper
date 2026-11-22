@@ -2,8 +2,8 @@
 // necromancers and their thralls use them only when nobody has picked dice for that actor. Nothing is
 // written to actors or settings, and nothing runs without Dicer.
 //
-// Themes live in data/dicer-themes.json. Besides "necromancer" and "thralls", an Obsession set can be
-// added as "necromancer-<obsession>" and "thralls-<obsession>" (blood, bone, flesh, spirit); an actor
+// Themes live in data/dicer-themes.json. Besides "necromancer" and "thralls", a Grim Fascination set can be
+// added as "necromancer-<fascination>" and "thralls-<fascination>" (blood, bone, flesh, spirit); an actor
 // whose Grim/Widespread Fascination matches gets that one, otherwise the plain theme.
 
 import { getFascinations } from "../spells/spell-helpers.js";
