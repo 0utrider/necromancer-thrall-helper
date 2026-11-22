@@ -1,4 +1,5 @@
 import { notifyForce } from "./notify.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 const MODULE_ID = "necromancer-thrall-helper";
 const NECRO_SLUGS = ["necromancer", "reanimator", "undead-master", "conjurer-of-corpses"];
@@ -38,7 +39,7 @@ export function userOwns(actor, { explicit = false } = {}) {
 function pickNecromancer(actors) {
     const options = actors.map(a => `<option value="${a.id}">${foundry.utils.escapeHTML(a.name)}</option>`).join("");
     return new Promise(resolve => {
-        new Dialog({
+        new NecroDialog({
             title: "Command Deck: Choose Necromancer",
             content: `<form><div class="form-group"><label>Necromancer</label><select name="necro">${options}</select></div></form>`,
             buttons: {
@@ -49,7 +50,6 @@ function pickNecromancer(actors) {
                 }
             },
             default: "ok",
-            render: (html) => html.closest(".app, .window-app").removeClass("theme-light").addClass("theme-dark"),
             close: () => resolve(null)
         }).render(true);
     });

@@ -3,6 +3,7 @@ import { createSpawnBatch } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
 import { effectColorNum } from "../system/effect-colors.js";
 import { attachGhostHUD, buildOwnerMap } from "./spell-helpers.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export function bindSummonThrallButtons(deck, html) {
     // 1. Standard Create Thrall Buttons (Spawn 1 / 2 / 3 / 4)
@@ -40,7 +41,7 @@ export function bindSummonThrallButtons(deck, html) {
             }
             formHtml += `</form>`;
 
-            new Dialog({
+            new NecroDialog({
                 title: "Summoning Ritual",
                 content: formHtml,
                 buttons: {
@@ -186,7 +187,7 @@ export function bindSummonThrallButtons(deck, html) {
                 },
                 default: "summon",
                 render: (dialogHtml) => bindUniqueSlotFiltering(dialogHtml[0], presets, "select[id^='preset-selector-']")
-            }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+            }).render(true);
         });
     });
 
@@ -206,7 +207,7 @@ export function bindSummonThrallButtons(deck, html) {
             let optionsHtml = `<option value="default">${defaultThrallLabel(actor)}</option><option value="random">(Random Non-Unique Family Member)</option>`;
             presets.forEach(p => { if (!p.isUnique) optionsHtml += `<option value="${p.id}">${p.name}</option>`; });
 
-            new Dialog({
+            new NecroDialog({
                 title: "Instant Army",
                 content: `<p>Call upon your reserve cache to spawn up to <b>20 thralls</b>!</p><form><div class="form-group" style="margin-bottom: 8px;"><label>Thrall Type:</label><select id="army-preset" style="width: 100%;">${optionsHtml}</select></div></form>`,
                 buttons: {

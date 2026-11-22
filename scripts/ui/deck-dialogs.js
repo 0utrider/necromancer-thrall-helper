@@ -2,6 +2,7 @@ import { artKind, BUNDLED_THRALL } from "../system/thrall-manager.js";
 import { notify } from "../system/notify.js";
 import { getZoneConfig, describeDramatisStyle } from "../system/tendril-zone.js";
 import { ownerColor, syncAllParticleColors, EFFECT_COLOR_KEYS } from "../system/effect-colors.js";
+import { NecroDialog } from "./necro-dialog.js";
 
 const SPELLCASTING_PROBLEMS = {
     noFocusEntry: "There is no <b>Focus</b> spellcasting entry on this character.",
@@ -16,7 +17,7 @@ const SPELLCASTING_PROBLEMS = {
 export function openSpellcastingCheckDialog(actor, problems) {
     if (!actor || !problems?.length) return;
     const list = problems.map(p => `<li>${SPELLCASTING_PROBLEMS[p] ?? p}</li>`).join("");
-    new Dialog({
+    new NecroDialog({
         title: "Command Deck: Spellcasting Check",
         content: `
             <p><b>${foundry.utils.escapeHTML(actor.name)}</b> isn't set up for the grave spells yet, so the deck can't show Focus Points or spell buttons:</p>
@@ -28,10 +29,6 @@ export function openSpellcastingCheckDialog(actor, problems) {
             </div>`,
         buttons: { ok: { icon: '<i class="fas fa-check"></i>', label: "Understood" } },
         default: "ok",
-        render: (dialogHtml) => {
-            const app = dialogHtml.closest(".app, .window-app");
-            app.removeClass("theme-light").addClass("theme-dark");
-        },
         close: (dialogHtml) => {
             if (dialogHtml.find('input[name="suppress"]').prop("checked")) {
                 actor.setFlag("necromancer-thrall-helper", "suppressSpellcastingCheck", true).catch(err => console.error(err));
@@ -172,7 +169,7 @@ export function openDefaultLookDialog(actor) {
         </form>
     `;
 
-    new Dialog({
+    new NecroDialog({
         title: "Default Thrall Look",
         content: formHtml,
         render: (dialogHtml) => {
@@ -332,7 +329,7 @@ export function openNecroSettingsDialog(actor) {
     const levelOptions = Object.entries(game.settings.settings.get("necromancer-thrall-helper.notificationLevel").choices)
         .map(([v, l]) => `<option value="${v}" ${v === level ? "selected" : ""}>${l}</option>`).join("");
 
-    new Dialog({
+    new NecroDialog({
         title: "Necromancer Settings",
         content: `
             <form autocomplete="off" class="necro-settings-form">

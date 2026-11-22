@@ -2,6 +2,7 @@ import { executeDelete } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect } from "../system/effect-catalog.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export async function executeBindHeroicSpirit({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -17,7 +18,7 @@ export async function executeBindHeroicSpirit({ actor, tokenDoc }) {
     const spellRank = Math.max(3, Math.ceil((actor.level || 1) / 2));
     const buffValue = spellRank >= 6 ? 2 : 1;
 
-    new Dialog({
+    new NecroDialog({
         title: "Bind Heroic Spirit",
         content: `<p>Sacrifice <b>${tokenDoc.name}</b> to channel an ancient warlord into your body?</p>`,
         buttons: {

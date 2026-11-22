@@ -1,6 +1,7 @@
 import { executeDelete } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
 import { getSpellDC, ensureNecroSpell } from "./spell-helpers.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export async function executeBoneSpear({ actor, tokenDoc, event }) {
     const necroLevel = actor.level || 1;
@@ -31,7 +32,7 @@ export async function executeBoneSpear({ actor, tokenDoc, event }) {
         }
     });
 
-    new Dialog({
+    new NecroDialog({
         title: "Bone Spear",
         content: `<p>Shatter <b>${tokenDoc.name}</b> into a 15-foot line of jagged bone for <b>${damageDice}d6 piercing</b> damage?</p>`,
         buttons: {
@@ -80,5 +81,5 @@ export async function executeBoneSpear({ actor, tokenDoc, event }) {
             cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
         },
         default: "fire"
-    }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+    }).render(true);
 }

@@ -2,6 +2,7 @@ import { executeDelete, executeHazard } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { getSpellDC, getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect } from "../system/effect-catalog.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export function bindBlossomingGoreButtons(deck, html) {
     const dismissGoreBtn = html.querySelector(".dismiss-gore-btn");
@@ -35,7 +36,7 @@ export async function executeBlossomingGore({ deck, actor, tokenDoc }) {
     const bleedDmg = 10 + (Math.max(0, spellRank - 5) * 2);
     const exactDC = getSpellDC(actor);
 
-    new Dialog({
+    new NecroDialog({
         title: "Blossoming Gore",
         content: `<p>Sacrifice <b>${tokenDoc.name}</b> to create a 20-foot burst field of bloody roses?</p>`,
         buttons: {

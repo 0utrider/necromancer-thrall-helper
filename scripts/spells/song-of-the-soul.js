@@ -1,6 +1,7 @@
 import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect } from "../system/effect-catalog.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export async function executeSongOfTheSoul({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -32,7 +33,7 @@ export async function executeSongOfTheSoul({ actor, tokenDoc }) {
         } else {
             const optionsHtml = eligibleAllies.map(t => `<option value="${t.id}">${t.name}</option>`).join("");
             const chosenId = await new Promise(resolve => {
-                new Dialog({
+                new NecroDialog({
                     title: "Song of the Soul Target",
                     content: `<p>Multiple allies are within 15 feet of the instrument thrall. Who hears the song?</p><form><select id="song-recipient">${optionsHtml}</select></form>`,
                     buttons: {
@@ -70,7 +71,7 @@ export async function executeSongOfTheSoul({ actor, tokenDoc }) {
     const spellRank = Math.max(1, Math.ceil((actor.level || 1) / 2));
     const spellTrait = isUndead ? "Void" : "Vitality";
 
-    new Dialog({
+    new NecroDialog({
         title: "Song of the Soul",
         content: `<p>Shape <b>${tokenDoc.name}</b> into a macabre instrument, restoring <b>${spellRank}d8 Hit Points</b> to <b>${targetDoc.name}</b> and granting Fast Healing ${spellRank} while in range?</p>`,
         buttons: {
@@ -108,5 +109,5 @@ export async function executeSongOfTheSoul({ actor, tokenDoc }) {
             cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
         },
         default: "cast"
-    }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+    }).render(true);
 }

@@ -2,6 +2,7 @@ import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
 import { executeDelete } from "../system/socket.js";    
 import { getNecroEffect } from "../system/effect-catalog.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export async function executeAmalgamate({ deck, actor, tokenDoc }) {
     const necroTokens = actor.getActiveTokens();
@@ -37,7 +38,7 @@ export async function executeAmalgamate({ deck, actor, tokenDoc }) {
         </form>
     `;
 
-    new Dialog({
+    new NecroDialog({
         title: "Amalgamate Thralls",
         content: dialogContent,
         buttons: {

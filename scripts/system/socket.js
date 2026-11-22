@@ -68,6 +68,7 @@ async function promptCorpseFate(corpse) {
     if (rememberedCorpseFate) return applyCorpseFate(corpse, rememberedCorpseFate);
     const { DialogV2 } = foundry.applications.api;
     const result = await DialogV2.wait({
+        classes: ["necro-thrall", "necro-dark"],
         window: { title: "Inevitable Return", icon: "fas fa-skull" },
         content: `<p>The thrall has risen. What should happen to the corpse?</p>
             ${corpseFateHtml(corpse.name ?? "corpse", "corpse-fate")}
@@ -316,6 +317,7 @@ async function askApproval({ items, scene, necroName, markers }) {
 
     const { DialogV2 } = foundry.applications.api;
     const result = await DialogV2.wait({
+        classes: ["necro-thrall", "necro-dark"],
         window: { title: "Thrall Summon Request", icon: "fas fa-skull" },
         content,
         rejectClose: false,

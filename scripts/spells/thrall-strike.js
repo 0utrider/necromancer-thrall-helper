@@ -3,6 +3,7 @@ import { executeDelete } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { canThrallDealVitality, getSpellDC, getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect, findNecroEffects } from "../system/effect-catalog.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj, isKamikaze = false, chargeDice = 0, passedSpellRank = 0) {
     const necroLevel = actor.level || 1;
@@ -153,7 +154,7 @@ export async function executeCharge({ deck, actor, tokenDoc, tokenId, event }) {
     else if (spellRank >= 6) chargeDice = 3;
     else if (spellRank >= 2) chargeDice = 2;
 
-    new Dialog({
+    new NecroDialog({
         title: "Thrall Charge",
         content: `<p>Detonate <b>${tokenDoc.name}</b> upon impact for an additional +${spellRank} status bonus to damage?</p>`,
         buttons: {
@@ -173,7 +174,7 @@ export async function executeCharge({ deck, actor, tokenDoc, tokenId, event }) {
             }
         },
         default: "charge"
-    }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+    }).render(true);
 }
 
 export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }) {
@@ -381,7 +382,7 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }
         });
     };
 
-    new Dialog({
+    new NecroDialog({
         title: "Conglomerate Charge",
         content: `<p>Command <b>${tokenDoc.name}</b> to charge? (Hits ${originalTargets.length} target(s) for an additional <b>+${chargeDice}d6</b> damage each).</p>`,
         buttons: {
@@ -390,5 +391,5 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }
             cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
         },
         default: "charge"
-    }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+    }).render(true);
 }

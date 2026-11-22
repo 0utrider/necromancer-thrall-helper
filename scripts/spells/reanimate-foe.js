@@ -3,6 +3,7 @@ import { executeSpawn, executeDelete } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect } from "../system/effect-catalog.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export async function executeReanimateFoe({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -36,7 +37,7 @@ export async function executeReanimateFoe({ actor, tokenDoc }) {
     const standardDCs = [14, 15, 16, 18, 19, 20, 22, 23, 24, 26, 27, 28, 30, 31, 32, 34, 35, 36, 38, 39, 40, 42, 44, 46, 48, 50];
     const exactDC = corpseLevel < 0 ? 14 : (corpseLevel > 25 ? 50 : standardDCs[corpseLevel]);
 
-    new Dialog({
+    new NecroDialog({
         title: "Reanimate Foe",
         content: `<p>Launch <b>${tokenDoc.name}</b> into the corpse of <b>${corpseDoc.name}</b>?</p><p>Rolling <b>Undead Lore</b> against DC ${exactDC} (Level ${corpseLevel}).</p>`,
         buttons: {

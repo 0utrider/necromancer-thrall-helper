@@ -1,6 +1,7 @@
 import { executeDelete, executeHazard } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
 import { getSpellDC, getTokenDistance, snapTopLeft, buildNecroSpellData } from "./spell-helpers.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 export function bindZombieHordeButtons(deck, html) {
     const sustainBtn = html.querySelector(".sustain-horde-btn");
@@ -164,7 +165,7 @@ export async function executeZombieHorde({ deck, actor, tokenDoc }) {
     await zhSpell.setFlag("aoe-easy-resolve", "saveDC", exactDC);
     await zhSpell.setFlag("aoe-easy-resolve", "saveType", "fortitude");
 
-    new Dialog({
+    new NecroDialog({
         title: "Zombie Horde",
         content: `<p>Transform <b>${tokenDoc.name}</b> into a Zombie Horde dealing <b>${diceCount}d4 bludgeoning</b> damage?</p>`,
         buttons: {
@@ -231,5 +232,5 @@ export async function executeZombieHorde({ deck, actor, tokenDoc }) {
             cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
         },
         default: "spawn"
-    }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+    }).render(true);
 }

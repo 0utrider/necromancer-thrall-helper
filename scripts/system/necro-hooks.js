@@ -23,6 +23,7 @@ import {
     dismissAllEffectsForActor,
     dismissAllThrallsForActor
 } from "../spells/spell-helpers.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
 globalThis.NecroThrallHelper.declinedPools = globalThis.NecroThrallHelper.declinedPools || new Set();
@@ -390,7 +391,7 @@ Hooks.once("ready", async () => {
 
                     if (eligibleAllies.length > 1) {
                         await new Promise(resolve => {
-                            new Dialog({
+                            new NecroDialog({
                                 title: "Life Tap: Siphon Recipient",
                                 content: `<p><b>${token.name}</b> lost ${hpLost} maximum HP. Choose who receives <b>${healingAmount} HP</b> of healing:</p><form><select id="heal-recipient">${eligibleAllies.map(t => `<option value="${t.actor.id}">${t.name}</option>`).join("")}</select></form>`,
                                 buttons: {
@@ -832,7 +833,7 @@ Hooks.on("createChatMessage", async (message) => {
             </div>
         `).join("");
 
-        new Dialog({
+        new NecroDialog({
             title: "Draining Strike",
             content: `<form id="drain-form" style="margin-bottom: 10px;"><p>Select <b>${requiredThralls}</b> thrall(s) to destroy to siphon their essence.</p><div style="background: rgba(0,0,0,0.3); padding: 8px; border-radius: 4px; border-left: 4px solid #4ade80; margin-bottom: 10px;"><p style="margin: 0; font-size: 0.9em;">Raw Spirit Damage: <b>${rawSpiritDamage}</b></p><p style="margin: 0; font-size: 0.9em;">Post-Mitigation Healing: <b>${spiritHeal} HP</b></p></div><div style="max-height: 200px; overflow-y: auto; border: 1px solid #333; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 4px;">${checkboxes}</div></form>`,
             buttons: {
@@ -878,7 +879,7 @@ Hooks.on("createChatMessage", async (message) => {
                     }
                 });
             }
-        }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+        }).render(true);
     }
 });
 
@@ -1265,6 +1266,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             if (presets.length === 0) return notify("warn", "No thrall presets found.");
             const optionsHtml = buildPresetOptions(attacker, presets);
             const presetChoice = await foundry.applications.api.DialogV2.wait({
+                classes: ["necro-thrall", "necro-dark"],
                 window: { title: "Inevitable Return", icon: "fas fa-skull" },
                 content: `<p>Select the identity for the new <b>${size === "sm" ? "Small" : "Medium"}</b> thrall rising from <b>${targetToken.name}</b>:</p><div class="form-group"><label>Thrall Identity:</label><div class="form-fields"><select id="inevitable-preset">${optionsHtml}</select></div></div>`,
                 rejectClose: false,
@@ -1365,7 +1367,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             const optionsHtml = buildPresetOptions(attacker, presets);
             let formHtml = `<form><p>Select the identities for the <b>${count}</b> new thrall(s) spawned near <b>${targetToken ? targetToken.name : "the field"}</b>:</p>`;
             for (let i = 0; i < count; i++) formHtml += `<div class="form-group"><label>Thrall ${i + 1}:</label><div class="form-fields"><select id="gore-preset-${i}">${optionsHtml}</select></div></div>`;
-            new Dialog({
+            new NecroDialog({
                 title: "Blood-Born Thralls", content: formHtml + `</form>`,
                 buttons: {
                     summon: {
@@ -1444,7 +1446,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             if (!game.user.isGM && !attackerToken?.isOwner) return;
             const targetToken = canvas.tokens.get($btn.attr("data-target-id")), presets = typeof getThrallPresets === "function" ? getThrallPresets(attackerActor) : [];
             const optionsHtml = buildPresetOptions(attackerActor, presets);
-            new Dialog({
+            new NecroDialog({
                 title: "Inspire Heroic Thrall", content: `<p>Your critical strike calls a spirit to the battlefield!</p><p>Select an identity to spawn adjacent to <b>${targetToken ? targetToken.name : "the target"}</b>:</p><form><div class="form-group"><select id="heroic-preset">${optionsHtml}</select></div></form>`,
                 buttons: {
                     summon: {
@@ -1501,7 +1503,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             };
             if (availableThralls.length === 1) consume(availableThralls[0]);
             else {
-                new Dialog({
+                new NecroDialog({
                     title: "Select Sacrifice", content: `<p>Multiple thralls detected in the wave. Which one is melted into grasping limbs?</p><form><div class="form-group"><label>Target:</label><select id="thrall-choice">${availableThralls.map(t => `<option value="${t.id}">${t.name}</option>`).join("")}</select></div></form>`,
                     buttons: { consume: { icon: '<i class="fas fa-hand-paper"></i>', label: "Melt", callback: d => consume(availableThralls.find(t => t.id === d[0].querySelector("#thrall-choice").value)) }, cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" } }, default: "consume"
                 }).render(true);
@@ -1527,10 +1529,10 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             };
             if (availableThralls.length === 1) consume(availableThralls[0]);
             else {
-                new Dialog({
+                new NecroDialog({
                     title: "Select Sacrifice", content: `<p>Multiple thralls detected in the blast zone. Which one is becoming armor?</p><form><div class="form-group"><label>Target:</label><select id="thrall-choice">${availableThralls.map(t => `<option value="${t.id}">${t.name}</option>`).join("")}</select></div></form>`,
                     buttons: { consume: { icon: '<i class="fas fa-shield-alt"></i>', label: "Consume", callback: d => consume(availableThralls.find(t => t.id === d[0].querySelector("#thrall-choice").value)) }, cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" } }, default: "consume"
-                }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+                }).render(true);
             }
         }
     });
@@ -1717,7 +1719,7 @@ globalThis.NecroThrallHelper.handleBloodPoolTrigger = async (regionDoc, tokenObj
     const lockoutKey = `${tokenObj.id}_${poolId}`;
     if (globalThis.NecroThrallHelper.declinedPools.has(lockoutKey)) return;
 
-    new Dialog({
+    new NecroDialog({
         title: "Absorb Blood Pool",
         content: `<p><b>${tokenObj.name}</b> stepped into an infused Blood Pool!</p><p>Spend a <b>Free Action</b> to absorb the lifeblood and recover <b>${healValue} Hit Points</b>?</p>`,
         buttons: {
@@ -2344,7 +2346,7 @@ Hooks.on("deleteCombat", async () => {
 
     if (!hasActiveThralls && !hasActiveEffects) return;
 
-    new Dialog({
+    new NecroDialog({
         title: "Encounter Ended: Necromancer Cleanup",
         content: `<p>Combat has ended. What would you like to do with <b>${actor.name}'s</b> active thralls and grave effects?</p>`,
         buttons: {
@@ -2379,5 +2381,5 @@ Hooks.on("deleteCombat", async () => {
             }
         },
         default: "keep"
-    }, { classes: ["dialog", "necro-thrall", "necro-dark"], width: 420 }).render(true);
+    }, { width: 420 }).render(true);
 });

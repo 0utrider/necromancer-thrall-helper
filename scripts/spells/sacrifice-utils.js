@@ -2,6 +2,7 @@ import { executeDelete } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { getTokenDistance, getActorThrallTokens } from "./spell-helpers.js";
 import { getNecroEffect, findNecroEffect } from "../system/effect-catalog.js";
+import { NecroDialog } from "../ui/necro-dialog.js";
 
 async function applyBodyShieldSacrifice(actor, tokenDoc) {
     const necroLevel = actor.level || 1;
@@ -42,7 +43,7 @@ export async function executeConsumeThrall({ actor, tokenDoc }) {
         return notify("warn", "That thrall is beyond 30 feet.");
     }
 
-    new Dialog({
+    new NecroDialog({
         title: "Consume Thrall",
         content: `<p>Destroy <b>${tokenDoc.name}</b> to regain 1 Focus Point?</p>`,
         buttons: {
@@ -65,7 +66,7 @@ export async function executeConsumeThrall({ actor, tokenDoc }) {
             cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
         },
         default: "consume"
-    }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+    }).render(true);
 }
 
 export function bindHeaderUtilityButtons(deck, html) {
@@ -127,7 +128,7 @@ export function bindHeaderUtilityButtons(deck, html) {
 
             const optionsHtml = eligibleThralls.map(t => `<option value="${t.id}">${t.name}</option>`).join("");
 
-            new Dialog({
+            new NecroDialog({
                 title: "Body Shield Reaction",
                 content: `<p>Select an adjacent thrall to throw into the attack's path:</p><form><div class="form-group"><select id="shield-thrall">${optionsHtml}</select></div></form>`,
                 buttons: {
@@ -174,7 +175,7 @@ export function bindHeaderUtilityButtons(deck, html) {
                 </div>
             `).join("");
 
-            new Dialog({
+            new NecroDialog({
                 title: "Reclaim Power",
                 content: `<form id="reclaim-form" style="margin-bottom: 10px;"><p>Select up to 3 thralls to destroy and siphon their essence (within 60 feet).</p><div style="max-height: 200px; overflow-y: auto; border: 1px solid #333; padding: 5px; background: rgba(0,0,0,0.2); border-radius: 4px;">${checkboxes}</div></form>`,
                 buttons: {
@@ -230,7 +231,7 @@ export function bindHeaderUtilityButtons(deck, html) {
                                 if (activeConditions.length > 0) {
                                     const condOptions = activeConditions.map(c => `<option value="${c.system.slug}">${c.name}</option>`).join("");
                                     await new Promise(resolve => {
-                                        new Dialog({
+                                        new NecroDialog({
                                             title: "Reduce Condition",
                                             content: `<p>You destroyed 3 thralls! Select a condition to decrease by 1:</p><form><select id="cond-select">${condOptions}</select></form>`,
                                             buttons: {
@@ -269,7 +270,7 @@ export function bindHeaderUtilityButtons(deck, html) {
                         }
                     });
                 }
-            }, { classes: ["dialog", "necro-thrall", "thrall-summon-dialog"] }).render(true);
+            }).render(true);
         });
     }
 
