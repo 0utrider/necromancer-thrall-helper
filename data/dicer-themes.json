@@ -1,0 +1,134 @@
+[
+  {
+    "id": "necromancer-thrall-helper.necromancer",
+    "name": "Necromancer",
+    "appearance": {
+      "body": {
+        "type": "pearl",
+        "color": "#8786ab",
+        "color2": "#5d3e71",
+        "finish": "polished",
+        "roughness": 0.25,
+        "preset": null
+      },
+      "interior": {
+        "type": "none",
+        "colors": [
+          "#8a4dff",
+          "#22d3ee"
+        ],
+        "density": 0.6,
+        "shape": "star",
+        "inclusion": "flower",
+        "bubble": false,
+        "sand": false,
+        "motion": true,
+        "extra": "none",
+        "extraColor": "#ffffff",
+        "extraDensity": 0.5
+      },
+      "numbers": {
+        "fill": "glow",
+        "relief": "engraved",
+        "icons": {
+          "crit": "flame",
+          "fumble": "skull"
+        },
+        "color": "#3cf7cc",
+        "contrast": false,
+        "inkGlow": 1.8,
+        "depth": 0.5,
+        "font": "norse",
+        "pips": false,
+        "coin": "sun-moon",
+        "size": 1,
+        "weight": 0.2
+      },
+      "edges": {
+        "radius": 0.25,
+        "style": "rounded",
+        "strip": {
+          "style": "body",
+          "color": "#e2b04a",
+          "strength": 1
+        }
+      },
+      "glow": {
+        "color": "#ffffff",
+        "intensity": 0
+      },
+      "shapes": {
+        "d4": "classic"
+      }
+    },
+    "perType": {},
+    "soundMaterial": "stone",
+    "rules": []
+  },
+  {
+    "id": "necromancer-thrall-helper.thralls",
+    "name": "Thralls",
+    "appearance": {
+      "body": {
+        "type": "gem",
+        "color": "#2d806d",
+        "color2": "#0a332a",
+        "finish": "polished",
+        "roughness": 0,
+        "preset": "quartz"
+      },
+      "interior": {
+        "type": "none",
+        "colors": [
+          "#8a4dff",
+          "#22d3ee"
+        ],
+        "density": 0.6,
+        "shape": "star",
+        "inclusion": "flower",
+        "bubble": false,
+        "sand": false,
+        "motion": true,
+        "extra": "none",
+        "extraColor": "#ffffff",
+        "extraDensity": 0.5
+      },
+      "numbers": {
+        "fill": "glow",
+        "relief": "engraved",
+        "icons": {
+          "crit": "flame",
+          "fumble": "skull"
+        },
+        "color": "#9b6bff",
+        "contrast": false,
+        "inkGlow": 1.8,
+        "depth": 0.5,
+        "font": "norse",
+        "pips": false,
+        "coin": "sun-moon",
+        "size": 1.3,
+        "weight": 0.2
+      },
+      "edges": {
+        "radius": 0.25,
+        "style": "rounded",
+        "strip": {
+          "style": "body",
+          "color": "#e2b04a",
+          "strength": 1
+        }
+      },
+      "glow": {
+        "color": "#ffffff",
+        "intensity": 0
+      },
+      "shapes": {
+        "d4": "classic"
+      }
+    },
+    "perType": {},
+    "soundMaterial": "stone",
+    "rules": []
+  }
+]
