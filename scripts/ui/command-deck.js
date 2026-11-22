@@ -2,7 +2,7 @@ import "../system/necro-hooks.js";
 import { getFatalMethodName, tokenPortrait } from "../system/thrall-manager.js";
 import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeDelete } from "../system/socket.js";
-import { notify } from "../system/notify.js";
+import { notify, guardAction } from "../system/notify.js";
 import { userOwns } from "../system/necro-resolve.js";
 import { findNecroEffect } from "../system/effect-catalog.js";
 import { openDefaultLookDialog, openNecroSettingsDialog, openSpellcastingCheckDialog } from "./deck-dialogs.js";
@@ -414,7 +414,7 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
                 BUSY_THRALLS.add(tokenId);
                 button.disabled = true;
                 try {
-                    await handler({ deck: this, actor, tokenDoc, tokenId, event: e });
+                    await guardAction(() => handler({ deck: this, actor, tokenDoc, tokenId, event: e }));
                 } finally {
                     BUSY_THRALLS.delete(tokenId);
                     if (button.isConnected) button.disabled = false;
