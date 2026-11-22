@@ -129,6 +129,16 @@ export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj,
         return;
     }
 
+    // Watch before rolling: a miss posts its message during the roll. A kamikaze thrall is removed
+    // once the Strike resolves (miss or damage); the flag lets the turn-end/combat-end/scene-load cleanup finish it.
+    if (addedEffectIds.length > 0 || isKamikaze) {
+        if (isKamikaze) await tokenDoc.update({ "flags.necromancer-thrall-helper.pendingDestroy": true }).catch(() => {});
+        watchStrikeCleanup({
+            tokenDoc, effectIds: addedEffectIds,
+            onResolve: isKamikaze ? () => executeDelete(tokenDoc.id) : null
+        });
+    }
+
     await strike.variants[variantIndex].roll({ event: eventObj });
 
     if (deck.currentMap === undefined || deck.currentMap === 0) {
@@ -137,17 +147,6 @@ export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj,
         deck.currentMap = -10;
     }
     deck.render(false);
-
-    if (isKamikaze) {
-        await tokenDoc.actor.update({ "system.attributes.hp.value": 0 });
-    }
-
-    if (addedEffectIds.length > 0 || isKamikaze) {
-        watchStrikeCleanup({
-            tokenDoc, effectIds: addedEffectIds,
-            onDamage: isKamikaze ? () => executeDelete(tokenDoc.id) : null
-        });
-    }
 }
 
 export async function executeStrike({ deck, actor, tokenDoc, tokenId, event }) {
@@ -208,6 +207,7 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId
         const { baseDice, attackMod } = thrallStrikeStats(actor);
         const weapon = await ensureThrallStrike(tokenDoc, { damageType, baseDice, attackMod });
 
+        if (isKamikaze) await tokenDoc.update({ "flags.necromancer-thrall-helper.pendingDestroy": true }).catch(() => {});
         const addedEffectIds = chargeDice > 0
             ? await applyChargeEffect(actor, tokenDoc, { spellRank, isKamikaze, dice: chargeDice, chargeDice })
             : [];
@@ -282,14 +282,17 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId
         deck.currentMap = -10;
         deck.render(false);
 
-        if (isKamikaze) await tokenDoc.actor.update({ "system.attributes.hp.value": 0 });
-
-        if (addedEffectIds.length > 0) {
-            // All misses: no damage is coming. Otherwise the charge dice go when the damage is rolled.
-            if (hitCount === 0) await deleteIfExists(tokenDoc.actor, addedEffectIds);
-            else watchStrikeCleanup({ tokenDoc, effectIds: addedEffectIds, watchMiss: false, timeoutMs: 60000 });
+        // All misses: no damage is coming, so the charge dice and a kamikaze thrall go now.
+        // Otherwise they go when the damage is rolled.
+        if (hitCount === 0) {
+            await deleteIfExists(tokenDoc.actor, addedEffectIds);
+            if (isKamikaze) await executeDelete(tokenDoc.id);
+        } else if (addedEffectIds.length > 0 || isKamikaze) {
+            watchStrikeCleanup({
+                tokenDoc, effectIds: addedEffectIds, watchMiss: false, timeoutMs: 60000,
+                onResolve: isKamikaze ? () => executeDelete(tokenDoc.id) : null
+            });
         }
-        if (isKamikaze) setTimeout(() => { if (tokenDoc?.actor) executeDelete(tokenDoc.id); }, 60000);
 
         if (hitCount === 0) {
             notify("info", "Conglomerate Charge: All strikes missed. No Grab saves needed.");

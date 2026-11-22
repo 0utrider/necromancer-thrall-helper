@@ -106,8 +106,9 @@ export const NECRO_EFFECTS = {
             d.system.duration = ctx.duration ?? { value: 1, unit: "rounds", sustained: false, expiry: "turn-end" };
             preselect(d, ctx.isKamikaze ? "yes" : "no");
             // Dice from other features (Living Graveyard, Perfected Thrall...) on top of the spell's own table.
-            if (ctx.dice && ctx.baseDice && ctx.dice > ctx.baseDice) {
-                d.system.rules.push({ key: "DamageDice", selector: "strike-damage", slug: "thrall-charge-bonus", diceNumber: ctx.dice - ctx.baseDice, dieSize: "d6" });
+            const baseDice = ctx.chargeDice ?? ctx.baseDice;
+            if (ctx.dice && baseDice && ctx.dice > baseDice) {
+                d.system.rules.push({ key: "DamageDice", selector: "strike-damage", slug: "thrall-charge-bonus", diceNumber: ctx.dice - baseDice, dieSize: "d6" });
             }
         },
         inline: (ctx = {}) => {
