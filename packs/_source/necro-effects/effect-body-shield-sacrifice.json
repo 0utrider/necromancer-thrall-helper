@@ -6,7 +6,7 @@
   "system": {
     "slug": "effect-body-shield-sacrifice",
     "description": {
-      "value": "<p>You threw a thrall in the way! +2 circumstance bonus to AC, and resistance to all damage equal to your level against the triggering attack.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.feats-srd.Item.XnFSS0nBcEMPA8oZ]{Body Shield}</p><p>You threw a thrall in the way! +2 circumstance bonus to AC, and resistance to all damage equal to your level against the triggering attack.</p>"
     },
     "duration": {
       "sustained": false,

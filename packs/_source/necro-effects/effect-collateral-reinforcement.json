@@ -6,7 +6,7 @@
   "system": {
     "slug": "collateral-reinforcement",
     "description": {
-      "value": "<p>Immune to area and splash damage.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.feats-srd.Item.JBfJSrPlfH4Dwp6k]{Collateral Reinforcement}</p><p>Immune to area and splash damage.</p>"
     },
     "duration": {
       "sustained": false,

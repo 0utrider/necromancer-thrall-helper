@@ -6,7 +6,7 @@
   "system": {
     "slug": "the-unholy-dead-effect",
     "description": {
-      "value": "<p>Thrall gains the unholy trait. Strikes deal +1 spirit damage and gain the unholy trait.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.feats-srd.Item.RILJjpTU4WKK6wVk]{The Unholy Dead}</p><p>Thrall gains the unholy trait. Strikes deal +1 spirit damage and gain the unholy trait.</p>"
     },
     "duration": {
       "sustained": false,

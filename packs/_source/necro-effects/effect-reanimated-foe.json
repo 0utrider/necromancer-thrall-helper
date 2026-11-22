@@ -6,7 +6,7 @@
   "system": {
     "slug": "reanimated-foe",
     "description": {
-      "value": "<p><b>Decay:</b> Loses 0 HP at the end of its turn. Cannot be healed.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.jtvMJEkiads8a4zj]{Reanimate Foe}</p><p><b>Decay:</b> Loses 0 HP at the end of its turn. Cannot be healed.</p>"
     },
     "duration": {
       "sustained": false,

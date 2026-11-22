@@ -6,7 +6,7 @@
   "system": {
     "slug": "effect-amalgamation",
     "description": {
-      "value": "<p>Fused from two thralls. Large size with 10-foot reach, 25-foot Speed, and a +1 status bonus to Strike damage.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.feats-srd.Item.R3nv6GqV8K6SjGoV]{Amalgamate}</p><p>Fused from two thralls. Large size with 10-foot reach, 25-foot Speed, and a +1 status bonus to Strike damage.</p>"
     },
     "duration": {
       "sustained": false,

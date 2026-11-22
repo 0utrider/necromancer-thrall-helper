@@ -6,7 +6,7 @@
   "system": {
     "slug": "song-instrument",
     "description": {
-      "value": "<p>Playing the Song of the Soul.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.oRKmyZPwGafCaFT2]{Song of the Soul}</p><p>Playing the Song of the Soul.</p>"
     },
     "duration": {
       "sustained": false,

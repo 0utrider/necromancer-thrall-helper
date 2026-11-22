@@ -6,7 +6,7 @@
   "system": {
     "slug": "effect-bone-armor",
     "description": {
-      "value": "<p>A +1 status bonus to AC.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.yfaTZv8nCsS4GtrA]{Bony Barrage}</p><p>A +1 status bonus to AC.</p>"
     },
     "duration": {
       "sustained": false,

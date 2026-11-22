@@ -6,7 +6,7 @@
   "system": {
     "slug": "living-graveyard-logic",
     "description": {
-      "value": "<p>Marks a living graveyard so the module can track it.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.spells-srd.Item.iCzdCea2tm1oVpRf]{Living Graveyard}</p><p>Marks a living graveyard so the module can track it.</p>"
     },
     "duration": {
       "sustained": false,

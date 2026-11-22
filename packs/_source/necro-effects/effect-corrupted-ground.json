@@ -6,7 +6,7 @@
   "system": {
     "slug": "effect-corrupted-ground",
     "description": {
-      "value": "<p>Aura of unholy void.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.feats-srd.Item.Gc5HwASZDFAQpb9Q]{Corrupted Ground}</p><p>Aura of unholy void.</p>"
     },
     "duration": {
       "sustained": false,

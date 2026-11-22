@@ -6,7 +6,7 @@
   "system": {
     "slug": "effect-hallowed-earth",
     "description": {
-      "value": "<p>Aura of holy vitality.</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.feats-srd.Item.IvedXsxIyl0odI8U]{Hallowed Earth}</p><p>Aura of holy vitality.</p>"
     },
     "duration": {
       "sustained": false,

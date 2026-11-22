@@ -1,5 +1,0 @@
-2026/11/21-20:08:18.733538 718a46bfd6c0 Delete type=3 #1
-2026/11/21-20:08:18.744290 718a45bfb6c0 Level-0 table #5: started
-2026/11/21-20:08:18.747835 718a45bfb6c0 Level-0 table #5: 5393 bytes OK
-2026/11/21-20:08:18.751176 718a45bfb6c0 Delete type=0 #3
-2026/11/21-20:08:18.751319 718a45bfb6c0 Manual compaction at level-0 from '!items!necroAmalgamatn0' @ 72057594037927935 : 1 .. '!items!necroUnholyDead0' @ 0 : 0; will stop at (end)

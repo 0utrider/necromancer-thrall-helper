@@ -6,7 +6,7 @@
   "system": {
     "slug": "puppeted-corpse",
     "description": {
-      "value": "<p>Your heroic spirit puppets your corpse. You are an undead object. Immune to bleed, death effects, disease, healing, nonlethal, poison, void, doomed, drained, fatigued, sickened, and unconscious. Broken Threshold 100 (Slowed 1).</p>"
+      "value": "<p>Granted by @UUID[Compendium.pf2e.classfeatures.Item.vt0idZAV9EDD1UN1]{Puppeteer}</p><p>Your heroic spirit puppets your corpse. You are an undead object. Immune to bleed, death effects, disease, healing, nonlethal, poison, void, doomed, drained, fatigued, sickened, and unconscious. Broken Threshold 100 (Slowed 1).</p>"
     },
     "duration": {
       "sustained": false,
