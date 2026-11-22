@@ -62,7 +62,7 @@ export async function ensureThrallStrike(tokenDoc, { damageType, baseDice, attac
 /** One Thrall Charge effect on the thrall, official source first; any older one is cleared so they never stack. */
 async function applyChargeEffect(actor, tokenDoc, { spellRank, isKamikaze, dice, chargeDice }) {
     await deleteIfExists(tokenDoc.actor, findNecroEffects(tokenDoc.actor, "thrallCharge").map(i => i.id));
-    const effectData = await getNecroEffect("thrallCharge", { flags: transientFlags(actor) }, {
+    const effectData = await getNecroEffect("thrallCharge", { flags: transientFlags(actor, "strike", { chargeDice: dice }) }, {
         spellRank, isKamikaze, dice, chargeDice, duration: oneStrikeDuration(actor)
     });
     return (await tokenDoc.actor.createEmbeddedDocuments("Item", [effectData])).map(e => e.id);

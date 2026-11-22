@@ -1,5 +1,6 @@
 import { ThrallCommandDeck } from "./ui/command-deck.js";
 import { dedupeSceneThrallStrikes } from "./spells/thrall-strike.js";
+import { registerNecroChatFx } from "./system/chat-fx.js";
 import { setupTransientEffectHooks } from "./system/transient-effects.js";
 import { resolveNecromancer, resolveNecromancerOrNotify, setupResolveHooks } from "./system/necro-resolve.js";
 import { setupHooks, repairWorldThrallArt } from "./system/thrall-manager.js";
@@ -152,6 +153,7 @@ Hooks.once("ready", () => {
     setupHooks();
     setupResolveHooks();
     setupTransientEffectHooks();
+    registerNecroChatFx();
     globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
     globalThis.NecroThrallHelper.checkIcons = checkIcons; // dev check: await NecroThrallHelper.checkIcons()
     setupEffectColorHooks();

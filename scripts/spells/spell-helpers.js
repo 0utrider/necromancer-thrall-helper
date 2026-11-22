@@ -1,10 +1,11 @@
+import { DMG_COLORS } from "../system/dmg-palette.js";
 import { getGrantedSlugs, resolveImageSet, applyRingArt, tokenPortrait } from "../system/thrall-manager.js";
 import { notify, notifyForce } from "../system/notify.js";
 import { effectColorNum } from "../system/effect-colors.js";
 import { executeDeleteBatch } from "../system/socket.js";
 import { isNecroEffect } from "../system/effect-catalog.js";
 
-export const THRALL_DMG_COLORS = { spirit: "#0ea5e9", void: "#7e22ce", vitality: "#b58900" };
+export const THRALL_DMG_COLORS = { spirit: DMG_COLORS.spirit, void: DMG_COLORS.void, vitality: DMG_COLORS.vitality };
 
 /**
  * Update a document only if it still exists; ignores "does not exist" race conditions.

@@ -5,9 +5,9 @@
 const MODULE = "necromancer-thrall-helper";
 
 /** Flags that mark an effect as lasting one Strike. */
-export function transientFlags(necroActor, kind = "strike") {
+export function transientFlags(necroActor, kind = "strike", extra = {}) {
     const combat = game.combat;
-    return { [MODULE]: { transient: kind, masterId: necroActor?.id ?? null, combatId: combat?.id ?? null, round: combat?.round ?? null } };
+    return { [MODULE]: { transient: kind, masterId: necroActor?.id ?? null, combatId: combat?.id ?? null, round: combat?.round ?? null, ...extra } };
 }
 
 /**
