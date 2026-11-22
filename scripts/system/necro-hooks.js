@@ -9,6 +9,7 @@ import {
     batchExcludeIds,
     payloadPresetId
 } from "./thrall-manager.js";
+import { getNecroEffect, findNecroEffect, findNecroEffects, isNecroEffect, necroEffectSource } from "./effect-catalog.js";
 import { executeSpawn, createSpawnBatch, executeDelete, executeHazard } from "./socket.js";
 import { notify, notifyForce, placementHint } from "./notify.js";
 import { effectColor, effectColorNum, zoneBorderColor } from "./effect-colors.js";
@@ -359,16 +360,7 @@ Hooks.once("ready", async () => {
                 if (!token?.actor || targetData.isImmune) { targetData.hasApplied = true; continue; }
                 if (dos && dos !== "criticalSuccess") {
                     try {
-                        await token.actor.createEmbeddedDocuments("Item", [{
-                            name: "Infused Blood",
-                            type: "effect",
-                            img: "icons/magic/water/blood-drop-skull.webp",
-                            system: {
-                                description: { value: "Loses immunity to bleed and is considered a creature with blood for 1 minute." },
-                                duration: { value: 1, unit: "minutes", expiry: null },
-                                rules: [{ key: "Immunity", type: "bleed", mode: "remove" }]
-                            }
-                        }]);
+                        await token.actor.createEmbeddedDocuments("Item", [await getNecroEffect("infusedBlood")]);
                         const damageFormula = dos === "success" ? `${spellRank}` : dos === "failure" ? `${spellRank}d6` : `${spellRank * 2}d6`;
                         if (typeof token.actor.increaseCondition === "function") {
                             await token.actor.increaseCondition("persistent-damage", { value: damageFormula, suboption: "bleed" });
@@ -500,22 +492,16 @@ Hooks.once("ready", async () => {
                 const titleText = dos === "success" ? "Calcifying!" : dos === "failure" ? "Calcifying Heavily!" : "Rapidly Petrifying!";
                 let details = `Slowed ${slowVal}, Weakness ${weakVal} Bludg.${dos !== "success" ? `<br><span style="font-size: 0.9em; font-style: italic; color: #ccc;">End of turn Fort save.</span>` : " (1 rd)"}`;
                 if (traits.includes("incorporeal")) details += `<br><span style="color: #a855f7; font-weight: bold; font-size: 0.95em;">⚠️ Loses Incorporeal Trait!</span>`;
-                try { if (typeof token.actor.increaseCondition === "function") { for (let i = 0; i < slowVal; i++) await token.actor.increaseCondition("slowed"); } } catch (e) {}
                 try {
-                    if (!token.actor.items.find(i => i.system?.slug === "effect-calcification" || i.name === "Effect: Calcification")) {
-                        await token.actor.createEmbeddedDocuments("Item", [{
-                            name: "Effect: Calcification",
-                            type: "effect",
-                            img: "icons/magic/death/skeleton-skull-soul-blue.webp",
-                            system: {
-                                slug: "effect-calcification",
-                                level: { value: 9 },
-                                duration: { value: dos === "success" ? 1 : -1, unit: dos === "success" ? "rounds" : "unlimited", expiry: "turn-start" },
-                                description: { value: `You are calcifying. Weakness ${weakVal} to bludgeoning.` },
-                                rules: [{ key: "Weakness", type: "bludgeoning", value: weakVal }]
-                            },
+                    if (!findNecroEffect(token.actor, "calcification")) {
+                        const calcEffect = await getNecroEffect("calcification", {
                             flags: { "necromancer-thrall-helper": { calcificationDC: saveDC, isCalcifying: true } }
-                        }]);
+                        }, { dos, weakVal });
+                        // The official effects grant slowed themselves; only add it by hand for the inline fallback.
+                        if (necroEffectSource(calcEffect) !== "official" && typeof token.actor.increaseCondition === "function") {
+                            for (let i = 0; i < slowVal; i++) await token.actor.increaseCondition("slowed");
+                        }
+                        await token.actor.createEmbeddedDocuments("Item", [calcEffect]);
                     }
                 } catch (e) {}
                 pushReceipt(tokenId, token, `<div style="display: flex; flex-direction: column; align-items: flex-end; text-align: right; width: 100%; line-height: 1.2;"><span style="color: ${titleColor}; font-weight: bold; text-transform: uppercase;">${titleText}</span><div style="font-size: 0.9em; margin-top: 2px;">${details}</div></div>`, `Calcification (${dos})`);
@@ -568,20 +554,10 @@ Hooks.once("ready", async () => {
                     if ((token.actor.getCondition("sickened")?.value || 0) < stage) {
                         await token.actor.increaseCondition("sickened");
                     }
-                    if (!token.actor.items.some(i => i.system?.slug === "effect-necrotic-blood")) {
-                        await token.actor.createEmbeddedDocuments("Item", [{
-                            name: "Effect: Necrotic Blood",
-                            type: "effect",
-                            img: "icons/magic/water/blood-drop-skull.webp",
-                            system: {
-                                slug: "effect-necrotic-blood",
-                                level: { value: 18 },
-                                duration: { value: (dos === "success") ? 1 : 6, unit: "rounds", expiry: "turn-end" },
-                                description: { value: `<b>Necrotic Blood (Stage ${stage})</b><br>Stage 1: 3d10 ${chosenType}, Sickened 1, Weakness 5 Bleed.<br>Stage 2: 4d10 ${chosenType}, Sickened 2, Weakness 10 Bleed.<br>Stage 3: 5d10 ${chosenType}, Sickened 3, Weakness 20 Bleed.<br><br><i>If this creature dies, a thrall rises from its corpse.</i>` },
-                                rules: [{ key: "Weakness", type: "bleed", value: stage === 3 ? 20 : stage * 5 }]
-                            },
+                    if (!findNecroEffect(token.actor, "necroticBlood")) {
+                        await token.actor.createEmbeddedDocuments("Item", [await getNecroEffect("necroticBlood", {
                             flags: { "necromancer-thrall-helper": { isNecroticBlood: true, masterId: casterId, dmgType: chosenType, necroticBloodDC: saveDC, stage: stage } }
-                        }]);
+                        }, { stage, chosenType, dos })]);
                     }
                 } catch (e) { console.error("Necromancer Helper | Disease DB lock:", e); }
 
@@ -700,20 +676,9 @@ Hooks.on("deleteToken", async (tokenDoc) => {
 
     // Reinforced Skeleton: Speed Surge
     if (masterActor.items.some(i => /reinforced\s*skeleton/i.test(i.name) || i.slug === "reinforced-skeleton")) {
-        const effectSlug = "effect-reinforced-skeleton-speed";
-        const existingEffect = masterActor.items.find(i => i.system?.slug === effectSlug || /reinforced\s*skeleton.*speed/i.test(i.name));
+        const existingEffect = findNecroEffect(masterActor, "reinforcedSkeleton");
         if (!existingEffect) {
-            await masterActor.createEmbeddedDocuments("Item", [{
-                name: "Reinforced Skeleton: Speed Surge",
-                type: "effect",
-                img: "icons/equipment/feet/boots-collared-simple-brown.webp",
-                system: {
-                    slug: effectSlug,
-                    description: { value: "Whenever you destroy a thrall, your status bonus to Speeds increases to +10 feet for 1 round." },
-                    duration: { value: 1, unit: "rounds", expiry: "turn-end" },
-                    rules: [{ key: "FlatModifier", selector: "speed", value: 10, type: "status", slug: "reinforced-skeleton-status-speed" }]
-                }
-            }]);
+            await masterActor.createEmbeddedDocuments("Item", [await getNecroEffect("reinforcedSkeleton")]);
         }
     }
 
@@ -932,20 +897,9 @@ Hooks.on("createItem", async (item, _options, userId) => {
             const badConditions = actor.items.filter(i => i.type === "condition" && ["dying", "wounded", "doomed", "unconscious", "prone"].includes(i.system.slug));
             if (badConditions.length > 0) await actor.deleteEmbeddedDocuments("Item", badConditions.map(i => i.id));
 
-            await actor.createEmbeddedDocuments("Item", [{
-                name: "Effect: Puppeted Corpse",
-                type: "effect",
-                img: "icons/magic/death/skeleton-skull-soul-blue.webp",
-                system: {
-                    duration: { value: 1, unit: "minutes", expiry: "turn-start" },
-                    description: { value: "Your heroic spirit puppets your corpse. You are an undead object. Immune to bleed, death effects, disease, healing, nonlethal, poison, void, doomed, drained, fatigued, sickened, and unconscious. Broken Threshold 100 (Slowed 1)." },
-                    rules: [
-                        { key: "FlatModifier", selector: "hp", value: 200 - actor.system.attributes.hp.max, type: "untyped" },
-                        { key: "Immunity", type: "bleed" }, { key: "Immunity", type: "death-effects" }, { key: "Immunity", type: "disease" }, { key: "Immunity", type: "healing" }, { key: "Immunity", type: "nonlethal-attacks" }, { key: "Immunity", type: "poison" }, { key: "Immunity", type: "void" }, { key: "Immunity", type: "doomed" }, { key: "Immunity", type: "drained" }, { key: "Immunity", type: "fatigued" }, { key: "Immunity", type: "sickened" }, { key: "Immunity", type: "unconscious" }, { key: "Immunity", type: "prone" }
-                    ]
-                },
+            await actor.createEmbeddedDocuments("Item", [await getNecroEffect("puppetedCorpse", {
                 flags: { "necromancer-thrall-helper": { isPuppetedCorpse: true } }
-            }]);
+            }, { hpAdjust: 200 - actor.system.attributes.hp.max })]);
 
             let attempts = 0;
             const resolvePuppetHP = async () => {
@@ -1042,7 +996,7 @@ Hooks.on("updateActor", async (actor, changes) => {
     const size = actor.system?.traits?.size?.value || actor.size || "med";
     const isValidSize = size === "sm" || size === "med";
     const isUndead = traits.some(t => typeof t === "string" && t.toLowerCase() === "undead");
-    const hasBlood = !traits.includes("construct") && !traits.includes("elemental") && (!isUndead || actor.items.some(i => i.name === "Infused Blood" || i.slug === "infused-blood"));
+    const hasBlood = !traits.includes("construct") && !traits.includes("elemental") && (!isUndead || findNecroEffect(actor, "infusedBlood"));
 
     const necromancers = canvas.tokens.placeables.filter(t => t.actor && t.actor.items.some(i => i.slug === "inevitable-return" || i.name === "Inevitable Return" || i.slug === "blood-pool" || i.name === "Blood Pool"));
 
@@ -1088,7 +1042,7 @@ Hooks.on("necroHelperDamageApplied", async (actor, options) => {
     if (!targetToken?.actor) return;
 
     const traits = targetToken.actor.system?.traits?.value || [];
-    const hasNoBlood = traits.includes("construct") || traits.includes("elemental") || (traits.includes("undead") && !targetToken.actor.items.some(i => i.name === "Infused Blood"));
+    const hasNoBlood = traits.includes("construct") || traits.includes("elemental") || (traits.includes("undead") && !findNecroEffect(targetToken.actor, "infusedBlood"));
     if (hasNoBlood) return;
 
     const necros = canvas.tokens.placeables.filter(t => t.actor?.items.some(i => i.name === "Blood Pool" || i.slug === "blood-pool"));
@@ -1173,7 +1127,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
     const attackerToken = canvas?.tokens?.get(message.speaker?.token);
     const attackerActor = attackerToken?.actor || game.actors.get(message.speaker?.actor);
 
-    if (pf2eContext?.type === "attack-roll" && pf2eContext?.outcome === "criticalSuccess" && attackerActor?.items.some(i => i.name === "Effect: Bind Heroic Spirit") && $html.find(".heroic-spawn-btn").length === 0) {
+    if (pf2eContext?.type === "attack-roll" && pf2eContext?.outcome === "criticalSuccess" && findNecroEffect(attackerActor, "bindHeroicSpirit") && $html.find(".heroic-spawn-btn").length === 0) {
         $html.find(".message-content").append(`<button type="button" class="heroic-spawn-btn" data-target-id="${pf2eContext.target?.token || ""}" style="background: #4a3600; color: #ffcc00; font-weight: bold; border: 1px solid #ffcc00; margin-top: 5px;"><i class="fas fa-ghost"></i> Inspire Heroic Thrall</button>`);
     }
 
@@ -1338,7 +1292,7 @@ Hooks.on("renderChatMessageHTML", (message, html) => {
             const gridSize = canvas.scene.grid.size, hazardId = foundry.utils.randomID();
             const hazardResult = await executeHazard({ name: "Gory Remains", color: "#4b5563", shapes: [{ type: "rectangle", hole: false, x: tX, y: tY, width: tW * gridSize, height: tH * gridSize, rotation: 0 }], elevation: { bottom: -1000, top: 1000 }, behaviors: [{ name: "Gory Difficult Terrain", type: "modifyMovementCost", system: {} }], flags: { "necromancer-thrall-helper": { isFleshTerrain: true, hazardId } } }, { author: game.user.id, shape: { type: "r", width: tW * gridSize, height: tH * gridSize }, x: tX, y: tY, hidden: true, flags: { "necromancer-thrall-helper": { hazardId } } });
             if (!hazardResult?.regionId) return notify("error", "Failed to place Gory Remains. Check GM socket.");
-            await masterActor.createEmbeddedDocuments("Item", [{ name: "Hazard: Gory Remains", type: "effect", img: "icons/magic/symbols/runes-star-orange.webp", system: { description: { value: "Tracks the duration of a Gory Remains difficult terrain hazard. Deleting this will clear the hazard from the map." }, duration: { value: 10, unit: "minutes", expiry: "turn-start" } }, flags: { "necromancer-thrall-helper": { isHazardTracker: true, hazardId, sceneId: canvas.scene.id } } }]);
+            await masterActor.createEmbeddedDocuments("Item", [await getNecroEffect("goryRemains", { flags: { "necromancer-thrall-helper": { isHazardTracker: true, hazardId, sceneId: canvas.scene.id } } })]);
             $btn.closest("div").html(`<p style="margin: 4px 0 0 0; text-align: center; color: #9ca3af; font-style: italic; font-size: 0.9em;"><i class="fas fa-check"></i> Gory Remains Placed</p>`);
         }
 
@@ -1829,11 +1783,11 @@ Hooks.on("deleteToken", async (tokenDoc, _options, userId) => {
         }
     }
 
-    const isInstrument = tokenDoc.actor?.items.some(i => i.name === "Effect: Song Instrument");
+    const isInstrument = findNecroEffect(tokenDoc.actor, "songInstrument");
     if (isInstrument && canvas.scene) {
         for (const t of canvas.scene.tokens) {
             if (t.actor) {
-                const recipientEffects = t.actor.items.filter(i => i.name === "Effect: Song of the Soul (Recipient)" && i.getFlag("necromancer-thrall-helper", "instrumentId") === tokenDoc.id);
+                const recipientEffects = findNecroEffects(t.actor, "songRecipient").filter(i => i.getFlag("necromancer-thrall-helper", "instrumentId") === tokenDoc.id);
                 for (const effect of recipientEffects) {
                     await effect.delete();
                     await t.actor.toggleRollOption("all", "song-of-the-soul-in-range", false);
@@ -1899,7 +1853,7 @@ Hooks.on("pf2e.endTurn", async (combatant, combat) => {
 
     const DamageRoll = CONFIG.Dice.rolls.find(r => r.name === "DamageRoll") || Roll;
 
-    const necros = combat.combatants.filter(c => c.id !== combatant.id && c.actor?.items.some(i => i.name === "Effect: Hallowed Earth" || i.name === "Effect: Corrupted Ground"));
+    const necros = combat.combatants.filter(c => c.id !== combatant.id && (findNecroEffect(c.actor, "hallowedEarth") || findNecroEffect(c.actor, "corruptedGround")));
     for (const necro of necros) {
         const nToken = necro.token?.object || canvas.tokens.get(necro.tokenId);
         if (!nToken) continue;
@@ -1911,13 +1865,13 @@ Hooks.on("pf2e.endTurn", async (combatant, combat) => {
             const isHoly = tVal.includes("holy");
             const isUnholy = tVal.includes("unholy");
 
-            if (isUnholy && necro.actor.items.some(i => i.name === "Effect: Hallowed Earth")) {
+            if (isUnholy && findNecroEffect(necro.actor, "hallowedEarth")) {
                 const roll = await new DamageRoll(`${scale}[spirit]${isUndead ? `,${scale}[vitality]` : ""}`).evaluate();
                 await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: necro.actor }), flavor: `<strong>Hallowed Earth</strong><br><b>${necro.actor.name}'s</b> aura burns ${targetToken.name}!` });
                 await targetActor.applyDamage({ damage: roll, token: tokenDoc });
             }
 
-            if ((isHoly || tVal.includes("psychopomp")) && necro.actor.items.some(i => i.name === "Effect: Corrupted Ground")) {
+            if ((isHoly || tVal.includes("psychopomp")) && findNecroEffect(necro.actor, "corruptedGround")) {
                 const roll = await new DamageRoll(`${scale}[spirit]${(isHoly && !isUndead && !tVal.includes("construct")) ? `,${scale}[void]` : ""}`).evaluate();
                 await roll.toMessage({ speaker: ChatMessage.getSpeaker({ actor: necro.actor }), flavor: `<strong>Corrupted Ground</strong><br><b>${necro.actor.name}'s</b> aura burns ${targetToken.name}!` });
                 await targetActor.applyDamage({ damage: roll, token: tokenDoc });
@@ -2088,24 +2042,10 @@ Hooks.on("createToken", async (tokenDoc, _options, userId) => {
     if (!hasHoly && !hasUnholy) return;
 
     const alignment = hasHoly ? "holy" : "unholy";
-    const featName = hasHoly ? "The Hallowed Dead" : "The Unholy Dead";
     const damageBonus = masterActor.level >= 10 ? 2 : 1;
-    if (actor.items.some(i => i.name === featName)) return;
+    if (findNecroEffect(actor, hasHoly ? "hallowedDead" : "unholyDead")) return;
 
-    await actor.createEmbeddedDocuments("Item", [{
-        name: featName,
-        type: "effect",
-        img: hasHoly ? "icons/magic/light/explosion-star-glow-yellow.webp" : "icons/magic/death/skull-horned-horns-purple.webp",
-        system: {
-            duration: { value: -1, unit: "unlimited" },
-            description: { value: `Thrall gains the ${alignment} trait. Strikes deal +${damageBonus} spirit damage and gain the ${alignment} trait.` },
-            rules: [
-                { key: "RollOption", domain: "all", option: `trait:${alignment}` },
-                { key: "FlatModifier", selector: "strike-damage", value: damageBonus, damageType: "spirit", type: "untyped" },
-                { key: "AdjustStrike", mode: "add", property: "weapon-traits", value: alignment }
-            ]
-        }
-    }]);
+    await actor.createEmbeddedDocuments("Item", [await getNecroEffect(hasHoly ? "hallowedDead" : "unholyDead", {}, { damageBonus })]);
 
     const newTraits = new Set(traits);
     newTraits.add(alignment);
@@ -2275,17 +2215,17 @@ Hooks.on("updateToken", async (tokenDoc, changes, _options, userId) => {
     };
 
     if (tokenDoc.actor) {
-        const recipientEffects = tokenDoc.actor.items.filter(i => i.name === "Effect: Song of the Soul (Recipient)");
+        const recipientEffects = findNecroEffects(tokenDoc.actor, "songRecipient");
         for (const effect of recipientEffects) {
             const inst = scene.tokens.get(effect.getFlag("necromancer-thrall-helper", "instrumentId"));
             if (!inst) { await effect.delete(); continue; }
             await toggleFastHealing(effect, tCenterX, tCenterY, inst.x + (inst.width * gridSize) / 2, inst.y + (inst.height * gridSize) / 2, `${tokenDoc.name} re-entered the Song's range. Fast Healing restored.`, `${tokenDoc.name} left the Song's range. Fast Healing suppressed.`);
         }
 
-        if (tokenDoc.actor.items.some(i => i.name === "Effect: Song Instrument")) {
+        if (findNecroEffect(tokenDoc.actor, "songInstrument")) {
             for (const t of scene.tokens) {
                 if (!t.actor || t.id === tokenDoc.id) continue;
-                const effect = t.actor.items.find(i => i.name === "Effect: Song of the Soul (Recipient)" && i.getFlag("necromancer-thrall-helper", "instrumentId") === tokenDoc.id);
+                const effect = findNecroEffects(t.actor, "songRecipient").find(i => i.getFlag("necromancer-thrall-helper", "instrumentId") === tokenDoc.id);
                 if (effect) {
                     await toggleFastHealing(effect, t.x + (t.width * gridSize) / 2, t.y + (t.height * gridSize) / 2, tCenterX, tCenterY, `The instrument moved in range of ${t.name}. Fast Healing restored.`, `The instrument moved out of ${t.name}'s range. Fast Healing suppressed.`);
                 }
@@ -2336,12 +2276,7 @@ Hooks.on("updateChatMessage", async (message, changes, options) => {
         let masterId = message.speaker?.actor;
         if (!masterId && canvas?.tokens?.controlled?.length > 0) masterId = canvas.tokens.controlled[0].actor?.id;
 
-        const effectData = {
-            name: "Effect: Bone Armor",
-            type: "effect",
-            img: "icons/magic/defensive/shield-barrier-flaming-pentagon-purple-orange.webp",
-            system: { duration: { value: 1, unit: "rounds", expiry: "turn-start" }, rules: [{ key: "FlatModifier", selector: "ac", value: 1, type: "status" }] }
-        };
+        const effectData = await getNecroEffect("boneArmor");
 
         for (const id of Object.keys(targets)) {
             const token = canvas?.tokens?.get(id);
@@ -2404,7 +2339,7 @@ Hooks.on("deleteCombat", async () => {
 
     const hasActiveThralls = canvas.scene.tokens.some(t => t.getFlag("necromancer-thrall-helper", "masterId") === actor.id);
     const hasActiveEffects = canvas.scene.regions.some(r => r.flags?.["necromancer-thrall-helper"])
-        || actor.items.some(i => i.type === "effect" && (i.getFlag("necromancer-thrall-helper", "isHazardTracker") || i.name === "Effect: Hallowed Earth" || i.name === "Effect: Corrupted Ground"));
+        || actor.items.some(i => i.type === "effect" && (i.getFlag("necromancer-thrall-helper", "isHazardTracker") || isNecroEffect(i, "hallowedEarth") || isNecroEffect(i, "corruptedGround")));
 
     if (!hasActiveThralls && !hasActiveEffects) return;
 

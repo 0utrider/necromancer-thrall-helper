@@ -1,6 +1,7 @@
 import { executeDelete, executeHazard } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { getSpellDC, getTokenDistance } from "./spell-helpers.js";
+import { getNecroEffect } from "../system/effect-catalog.js";
 
 export function bindBlossomingGoreButtons(deck, html) {
     const dismissGoreBtn = html.querySelector(".dismiss-gore-btn");
@@ -159,16 +160,9 @@ export async function executeBlossomingGore({ deck, actor, tokenDoc }) {
                         }
                     }, 2000);
 
-                    await actor.createEmbeddedDocuments("Item", [{
-                        name: "Hazard: Blossoming Gore",
-                        type: "effect",
-                        img: "icons/magic/life/heart-cross-plant-green.webp",
-                        system: {
-                            description: { value: "Tracks the duration of the Blossoming Gore hazard. Deleting this clears the hazard from the map." },
-                            duration: { value: 1, unit: "minutes", expiry: "turn-start" }
-                        },
+                    await actor.createEmbeddedDocuments("Item", [await getNecroEffect("blossomingGore", {
                         flags: { "necromancer-thrall-helper": { isHazardTracker: true, hazardId: regionId, sceneId: canvas.scene.id } }
-                    }]);
+                    })]);
 
                     await executeDelete(tokenDoc.id);
                     deck.render({ force: false });

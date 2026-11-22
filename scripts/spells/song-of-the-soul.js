@@ -1,5 +1,6 @@
 import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
+import { getNecroEffect } from "../system/effect-catalog.js";
 
 export async function executeSongOfTheSoul({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -95,35 +96,12 @@ export async function executeSongOfTheSoul({ actor, tokenDoc }) {
                         await targetActor.update({ "system.attributes.hp.value": Math.min(maxHP, currentHP + actualHeal) });
                     }
 
-                    const thrallEffect = {
-                        name: "Effect: Song Instrument",
-                        type: "effect",
-                        img: "icons/skills/music/instrument-harp-harpist-blue.webp",
-                        system: {
-                            duration: { value: 1, unit: "minutes", expiry: "turn-start" },
-                            description: { value: `Playing the Song of the Soul for ${targetDoc.name}.` },
-                            rules: [{ key: "Aura", radius: 15, colors: { border: "#00ffff", fill: "#00ffff" } }]
-                        }
-                    };
+                    const thrallEffect = await getNecroEffect("songInstrument", {}, { targetName: targetDoc.name });
                     await tokenDoc.actor.createEmbeddedDocuments("Item", [thrallEffect]);
 
-                    const recipientEffect = {
-                        name: "Effect: Song of the Soul (Recipient)",
-                        type: "effect",
-                        img: "icons/magic/life/heart-cross-blue.webp",
-                        system: {
-                            duration: { value: 1, unit: "minutes", expiry: "turn-start" },
-                            description: { value: `Gains Fast Healing ${spellRank} as long as you are within 15 feet of the instrument thrall.` },
-                            rules: [{ key: "FastHealing", value: spellRank, type: "fast-healing" }]
-                        },
-                        flags: {
-                            "necromancer-thrall-helper": {
-                                instrumentId: tokenDoc.id,
-                                spellRank: spellRank,
-                                isUndead: isUndead
-                            }
-                        }
-                    };
+                    const recipientEffect = await getNecroEffect("songRecipient", {
+                        flags: { "necromancer-thrall-helper": { instrumentId: tokenDoc.id, spellRank: spellRank, isUndead: isUndead } }
+                    }, { spellRank });
                     await targetActor.createEmbeddedDocuments("Item", [recipientEffect]);
                 }
             },

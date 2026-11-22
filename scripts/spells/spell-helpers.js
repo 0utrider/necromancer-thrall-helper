@@ -2,6 +2,7 @@ import { getGrantedSlugs, resolveImageSet, applyRingArt, tokenPortrait } from ".
 import { notify, notifyForce } from "../system/notify.js";
 import { effectColorNum } from "../system/effect-colors.js";
 import { executeDeleteBatch } from "../system/socket.js";
+import { isNecroEffect } from "../system/effect-catalog.js";
 
 export const THRALL_DMG_COLORS = { spirit: "#0ea5e9", void: "#7e22ce", vitality: "#b58900" };
 
@@ -485,8 +486,8 @@ export async function dismissAllEffectsForActor(actor) {
         const effectIdsToRemove = actor.items.filter(i =>
             i.type === "effect" && (
                 i.getFlag("necromancer-thrall-helper", "isHazardTracker") ||
-                i.name === "Effect: Hallowed Earth" ||
-                i.name === "Effect: Corrupted Ground"
+                isNecroEffect(i, "hallowedEarth") ||
+                isNecroEffect(i, "corruptedGround")
             )
         ).map(i => i.id);
 

@@ -2,6 +2,7 @@ import { tokenPortrait } from "../system/thrall-manager.js";
 import { executeDelete } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { canThrallDealVitality, getSpellDC, getTokenDistance } from "./spell-helpers.js";
+import { getNecroEffect, findNecroEffects } from "../system/effect-catalog.js";
 
 export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj, isKamikaze = false, chargeDice = 0, passedSpellRank = 0) {
     const necroLevel = actor.level || 1;
@@ -77,19 +78,10 @@ export async function rollNativeStrike(deck, actor, tokenDoc, tokenId, eventObj,
 
     let addedEffectIds = [];
     if (totalChargeDice > 0) {
-        const rules = [{
-            key: "DamageDice", selector: "strike-damage", diceNumber: totalChargeDice, dieSize: "d6", slug: "thrall-charge-dice"
-        }];
-        if (isKamikaze) {
-            rules.push({ key: "FlatModifier", selector: "strike-damage", value: spellRank, type: "status", slug: "thrall-charge-status" });
-        }
-
-        const effectData = {
-            type: "effect",
-            name: isKamikaze ? "Thrall Charge (Kamikaze)" : "Thrall Charge",
-            img: "icons/magic/death/undead-ghost-scream-teal.webp",
-            system: { level: { value: spellRank }, duration: { value: 1, unit: "rounds", expiry: "turn-end" }, rules: rules }
-        };
+        // The official effect only matches the plain rank-based dice; extra dice from other features use the inline one.
+        const effectData = await getNecroEffect("thrallCharge", {}, {
+            spellRank, isKamikaze, dice: totalChargeDice, skipOfficial: totalChargeDice !== chargeDice
+        });
         const createdEffects = await tokenDoc.actor.createEmbeddedDocuments("Item", [effectData]);
         addedEffectIds = createdEffects.map(effect => effect.id);
     }
@@ -204,7 +196,7 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }
     else if (spellRank >= 2) chargeDice = 2;
 
     const executeConglomerate = async (isKamikaze) => {
-        const staleEffects = tokenDoc.actor.items.filter(i => i.name.includes("Thrall Charge"));
+        const staleEffects = findNecroEffects(tokenDoc.actor, "thrallCharge");
         if (staleEffects.length > 0) {
             await tokenDoc.actor.deleteEmbeddedDocuments("Item", staleEffects.map(i => i.id));
         }
@@ -231,19 +223,8 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, event }
 
         let addedEffectIds = [];
         if (chargeDice > 0) {
-            const rules = [{
-                key: "DamageDice", selector: "strike-damage", diceNumber: chargeDice, dieSize: "d6", slug: "thrall-charge-dice"
-            }];
-            if (isKamikaze) {
-                rules.push({ key: "FlatModifier", selector: "strike-damage", value: spellRank, type: "status", slug: "thrall-charge-status" });
-            }
-
-            const effectData = {
-                type: "effect",
-                name: isKamikaze ? "Thrall Charge (Kamikaze)" : "Thrall Charge",
-                img: "icons/magic/death/undead-ghost-scream-teal.webp",
-                system: { level: { value: spellRank }, duration: { value: 1, unit: "rounds", expiry: "turn-end" }, rules: rules }
-            };
+            // Conglomerate of Limbs keeps the inline version: its dice come from the module, not the spell's rank table.
+            const effectData = await getNecroEffect("thrallCharge", {}, { spellRank, isKamikaze, dice: chargeDice, skipOfficial: true });
             const createdEffects = await tokenDoc.actor.createEmbeddedDocuments("Item", [effectData]);
             addedEffectIds = createdEffects.map(effect => effect.id);
         }

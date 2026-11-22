@@ -1,6 +1,7 @@
 import { executeDelete } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
+import { getNecroEffect } from "../system/effect-catalog.js";
 
 export async function executeMuscleBarrier({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -47,20 +48,7 @@ export async function executeMuscleBarrier({ actor, tokenDoc }) {
                     const focusToSpend = actor.system?.resources?.focus?.value || 0;
                     if (focusToSpend > 0) await actor.update({ "system.resources.focus.value": focusToSpend - 1 });
 
-                    const effectData = {
-                        name: "Effect: Muscle Barrier",
-                        type: "effect",
-                        img: "icons/magic/defensive/shield-barrier-flaming-pentagon-purple-orange.webp",
-                        system: {
-                            duration: { value: 1, unit: "minutes", expiry: "turn-start" },
-                            description: { value: `Grants ${tempHP} temporary Hit Points and a +1 status bonus to Athletics checks. The spell ends when all temporary Hit Points are gone.` },
-                            rules: [
-                                { key: "TempHP", value: tempHP },
-                                { key: "FlatModifier", selector: "athletics", value: 1, type: "status" }
-                            ]
-                        }
-                    };
-
+                    const effectData = await getNecroEffect("muscleBarrier", {}, { spellRank, tempHP });
                     await targetActor.createEmbeddedDocuments("Item", [effectData]);
                     await executeDelete(tokenDoc.id);
 

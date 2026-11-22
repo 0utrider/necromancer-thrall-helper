@@ -1,6 +1,7 @@
 import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
 import { executeDelete } from "../system/socket.js";    
+import { getNecroEffect } from "../system/effect-catalog.js";
 
 export async function executeAmalgamate({ deck, actor, tokenDoc }) {
     const necroTokens = actor.getActiveTokens();
@@ -59,24 +60,7 @@ export async function executeAmalgamate({ deck, actor, tokenDoc }) {
                         "texture.scaleY": 1.25
                     });
 
-                    const effectData = {
-                        name: "Effect: Amalgamation",
-                        type: "effect",
-                        img: "icons/magic/death/undead-zombie-glowing-green.webp",
-                        system: {
-                            slug: "effect-amalgamation",
-                            description: {
-                                value: `Fused from two thralls. Large size with 10-foot reach, 25-foot Speed, and a +${masterLevel} status bonus to Strike damage.`
-                            },
-                            duration: { value: -1, unit: "unlimited" },
-                            rules: [
-                                { key: "CreatureSize", value: "lg" },
-                                { key: "BaseSpeed", selector: "land", value: 25 },
-                                { key: "FlatModifier", selector: "strike-damage", value: masterLevel, type: "status", label: "Amalgamation Status Damage" },
-                                { key: "AdjustStrike", mode: "upgrade", property: "weapon-traits", value: "reach" }
-                            ]
-                        }
-                    };
+                    const effectData = await getNecroEffect("amalgamation", {}, { masterLevel });
 
                     if (tokenDoc.actor) {
                         await tokenDoc.actor.createEmbeddedDocuments("Item", [effectData]);

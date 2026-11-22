@@ -11,6 +11,7 @@ import {
     buildOwnerMap,
     snapTopLeft
 } from "./spell-helpers.js";
+import { getNecroEffect } from "../system/effect-catalog.js";
 
 export async function executeSheddingMatrix(actor, maxSpawns) {
     globalThis.NecroThrallHelper = globalThis.NecroThrallHelper || {};
@@ -238,13 +239,9 @@ export function bindLivingGraveyardButtons(deck, html) {
                     }
 
                     if (newTokenDoc && newTokenDoc.actor) {
-                        await newTokenDoc.actor.createEmbeddedDocuments("Item", [{
-                            name: "Living Graveyard Logic",
-                            type: "effect",
-                            img: "icons/environment/wilderness/monolith-stone-grey.webp",
-                            system: { duration: { value: 1, unit: "minutes", expiry: "turn-start" }, rules: [] },
+                        await newTokenDoc.actor.createEmbeddedDocuments("Item", [await getNecroEffect("livingGraveyardLogic", {
                             flags: { "necromancer-thrall-helper": { isLivingGraveyard: true } }
-                        }]);
+                        })]);
 
                         const [templateDoc] = await canvas.scene.createEmbeddedDocuments("MeasuredTemplate", [{
                             t: "circle",

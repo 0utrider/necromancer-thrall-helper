@@ -1,6 +1,7 @@
 import { executeDelete } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
+import { getNecroEffect } from "../system/effect-catalog.js";
 
 export async function executeBindHeroicSpirit({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -26,22 +27,7 @@ export async function executeBindHeroicSpirit({ actor, tokenDoc }) {
                 callback: async () => {
                     await actor.update({ "system.resources.focus.value": currentFocus - 1 });
 
-                    const effectData = {
-                        name: "Effect: Bind Heroic Spirit",
-                        type: "effect",
-                        img: "icons/magic/light/explosion-star-glow-blue-purple.webp",
-                        system: {
-                            level: { value: spellRank },
-                            duration: { value: 1, unit: "minutes", expiry: "turn-start" },
-                            description: { value: `You gain a +${buffValue} status bonus to attack rolls and saving throws. Whenever you critically hit a creature with a Strike, you can create a thrall adjacent to the target.` },
-                            rules: [
-                                { key: "FlatModifier", selector: "attack", value: buffValue, type: "status" },
-                                { key: "FlatModifier", selector: "saving-throw", value: buffValue, type: "status" },
-                                { key: "RollOption", domain: "strike-damage", option: "heroic-spirit-active" }
-                            ]
-                        }
-                    };
-
+                    const effectData = await getNecroEffect("bindHeroicSpirit", {}, { spellRank, buffValue });
                     await actor.createEmbeddedDocuments("Item", [effectData]);
                     await executeDelete(tokenDoc.id);
 

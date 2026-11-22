@@ -1,26 +1,14 @@
 import { executeDelete } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { getTokenDistance, getActorThrallTokens } from "./spell-helpers.js";
+import { getNecroEffect, findNecroEffect } from "../system/effect-catalog.js";
 
 async function applyBodyShieldSacrifice(actor, tokenDoc) {
     const necroLevel = actor.level || 1;
     const currentAC = actor.system?.attributes?.ac?.value || 10;
     const boostedAC = currentAC + 2;
 
-    await actor.createEmbeddedDocuments("Item", [{
-        name: "Effect: Body Shield",
-        type: "effect",
-        img: "icons/magic/defensive/shield-barrier-glowing-triangle-magenta.webp",
-        system: {
-            level: { value: necroLevel },
-            duration: { value: 1, unit: "rounds", expiry: "turn-start" },
-            description: { value: "You threw a thrall in the way! +2 circumstance bonus to AC, and resistance to all damage equal to your level against the triggering attack." },
-            rules: [
-                { key: "FlatModifier", selector: "ac", value: 2, type: "circumstance" },
-                { key: "Resistance", type: "all-damage", value: necroLevel }
-            ]
-        }
-    }]);
+    await actor.createEmbeddedDocuments("Item", [await getNecroEffect("bodyShield", {}, { necroLevel })]);
 
     await executeDelete(tokenDoc.id);
 
@@ -89,21 +77,12 @@ export function bindHeaderUtilityButtons(deck, html) {
             const actor = game.actors.get(deck.necroId) || game.user.character;
             if (!actor) return;
 
-            const existing = actor.items.find(i => i.type === "effect" && i.name === "Effect: Hallowed Earth");
+            const existing = findNecroEffect(actor, "hallowedEarth");
             if (existing) {
                 await existing.delete();
                 notify("info", "Hallowed Earth dismissed.");
             } else {
-                await actor.createEmbeddedDocuments("Item", [{
-                    name: "Effect: Hallowed Earth",
-                    type: "effect",
-                    img: "icons/magic/light/explosion-star-glow-yellow.webp",
-                    system: {
-                        duration: { value: 1, unit: "minutes", expiry: "turn-start" },
-                        description: { value: "Aura of holy vitality." },
-                        rules: [{ key: "Aura", radius: 10, colors: { border: "#ffd700", fill: "#ffd700" } }]
-                    }
-                }]);
+                await actor.createEmbeddedDocuments("Item", [await getNecroEffect("hallowedEarth")]);
                 notify("info", "Hallowed Earth activated.");
             }
             deck.render({ force: false });
@@ -118,21 +97,12 @@ export function bindHeaderUtilityButtons(deck, html) {
             const actor = game.actors.get(deck.necroId) || game.user.character;
             if (!actor) return;
 
-            const existing = actor.items.find(i => i.type === "effect" && i.name === "Effect: Corrupted Ground");
+            const existing = findNecroEffect(actor, "corruptedGround");
             if (existing) {
                 await existing.delete();
                 notify("info", "Corrupted Ground dismissed.");
             } else {
-                await actor.createEmbeddedDocuments("Item", [{
-                    name: "Effect: Corrupted Ground",
-                    type: "effect",
-                    img: "icons/magic/death/skull-horned-horns-purple.webp",
-                    system: {
-                        duration: { value: 1, unit: "minutes", expiry: "turn-start" },
-                        description: { value: "Aura of unholy void." },
-                        rules: [{ key: "Aura", radius: 10, colors: { border: "#8a2be2", fill: "#8a2be2" } }]
-                    }
-                }]);
+                await actor.createEmbeddedDocuments("Item", [await getNecroEffect("corruptedGround")]);
                 notify("info", "Corrupted Ground activated.");
             }
             deck.render({ force: false });
@@ -314,20 +284,7 @@ export function bindHeaderUtilityButtons(deck, html) {
             const thrallTokens = getActorThrallTokens(actor, { includeReanimated: true });
             if (thrallTokens.length === 0) return notify("warn", "No thralls on the battlefield to reinforce.");
 
-            const effectData = {
-                name: "Collateral Reinforcement",
-                type: "effect",
-                img: "icons/magic/defensive/shield-barrier-flaming-pentagon-purple-orange.webp",
-                system: {
-                    duration: { value: 1, unit: "rounds", expiry: "turn-start" },
-                    description: { value: "Immune to area and splash damage." },
-                    rules: [
-                        { key: "Immunity", type: "area-damage" },
-                        { key: "Immunity", type: "area" },
-                        { key: "Immunity", type: "splash" }
-                    ]
-                }
-            };
+            const effectData = await getNecroEffect("collateralReinforcement");
 
             for (const tDoc of thrallTokens) {
                 if (tDoc.actor) await tDoc.actor.createEmbeddedDocuments("Item", [effectData]);

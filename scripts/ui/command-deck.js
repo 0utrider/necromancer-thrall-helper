@@ -4,6 +4,7 @@ import { PortfolioEditor } from "./portfolio-editor.js";
 import { executeDelete } from "../system/socket.js";
 import { notify } from "../system/notify.js";
 import { userOwns } from "../system/necro-resolve.js";
+import { findNecroEffect } from "../system/effect-catalog.js";
 import { openDefaultLookDialog, openNecroSettingsDialog, openSpellcastingCheckDialog } from "./deck-dialogs.js";
 import { bindHeaderSpellButtons, THRALL_ACTIONS } from "../spells/index.js";
 import {
@@ -245,8 +246,8 @@ export class ThrallCommandDeck extends HandlebarsApplicationMixin(ApplicationV2)
             hasConglomerateOfLimbs: hasSpell("Conglomerate of Limbs"),
             hasHallowedEarth: hasItemSubstring("hallowed earth"),
             hasCorruptedGround: hasItemSubstring("corrupted ground"),
-            isHallowedActive: actor?.items.some(i => i.type === "effect" && i.name === "Effect: Hallowed Earth") || false,
-            isCorruptedActive: actor?.items.some(i => i.type === "effect" && i.name === "Effect: Corrupted Ground") || false,
+            isHallowedActive: !!findNecroEffect(actor, "hallowedEarth"),
+            isCorruptedActive: !!findNecroEffect(actor, "corruptedGround"),
             activeHordeCount: activeHordes.length,
             hasBlossomingGore: hasSpell("Blossoming Gore"),
             activeGoreCount: activeGores.length,

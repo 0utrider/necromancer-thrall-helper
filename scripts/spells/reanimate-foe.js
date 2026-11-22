@@ -2,6 +2,7 @@ import { prepareThrallPayload, getThrallPresets } from "../system/thrall-manager
 import { executeSpawn, executeDelete } from "../system/socket.js";
 import { notify, placementHint } from "../system/notify.js";
 import { getTokenDistance } from "./spell-helpers.js";
+import { getNecroEffect } from "../system/effect-catalog.js";
 
 export async function executeReanimateFoe({ actor, tokenDoc }) {
     const currentFocus = actor.system?.resources?.focus?.value || 0;
@@ -155,26 +156,9 @@ export async function executeReanimateFoe({ actor, tokenDoc }) {
                                     "system.details.alliance": "party"
                                 });
 
-                                const effectData = {
-                                    name: "Reanimated Foe",
-                                    type: "effect",
-                                    img: "icons/magic/death/undead-zombie-glowing-green.webp",
-                                    system: {
-                                        duration: { value: 1, unit: "minutes", expiry: "turn-start" },
-                                        description: { value: `<b>Decay:</b> Loses ${decayAmount} HP at the end of its turn. Cannot be healed.<br>${isFailure ? "<b>Failure:</b> Strikes deal half damage." : ""}` },
-                                        rules: [
-                                            { key: "Immunity", type: "healing" },
-                                            { key: "ActiveEffectLike", mode: "override", path: "system.attributes.hp.max", value: 100 }
-                                        ]
-                                    },
-                                    flags: {
-                                        "necromancer-thrall-helper": {
-                                            isReanimatedFoe: true,
-                                            decayAmount: decayAmount,
-                                            masterId: actor.id
-                                        }
-                                    }
-                                };
+                                const effectData = await getNecroEffect("reanimatedFoe", {
+                                    flags: { "necromancer-thrall-helper": { isReanimatedFoe: true, decayAmount: decayAmount, masterId: actor.id } }
+                                }, { decayAmount, isFailure });
 
                                 await newActor.createEmbeddedDocuments("Item", [effectData]);
 
