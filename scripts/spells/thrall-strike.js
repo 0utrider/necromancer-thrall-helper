@@ -1,6 +1,6 @@
 import { tokenPortrait } from "../system/thrall-manager.js";
 import { executeDelete } from "../system/socket.js";
-import { notify } from "../system/notify.js";
+import { notify, guardAction } from "../system/notify.js";
 import { canThrallDealVitality, getSpellDC, getTokenDistance } from "./spell-helpers.js";
 import { getNecroEffect, findNecroEffects } from "../system/effect-catalog.js";
 import { NecroDialog } from "../ui/necro-dialog.js";
@@ -52,6 +52,7 @@ export async function ensureThrallStrike(tokenDoc, { damageType, baseDice, attac
 
     const key = Object.keys(keep.system.damageRolls ?? {})[0] ?? "base";
     await keep.update({
+        img: data.img,
         "system.slug": "thrall-strike",
         "system.bonus.value": attackMod,
         [`system.damageRolls.${key}.damage`]: `${baseDice}d6`,
@@ -170,14 +171,14 @@ export async function executeCharge({ deck, actor, tokenDoc, tokenId, event }) {
                 icon: '<i class="fas fa-running"></i>',
                 label: "Just Charge",
                 callback: async () => {
-                    await rollNativeStrike(deck, actor, tokenDoc, tokenId, event, false, chargeDice, spellRank);
+                    await guardAction(() => rollNativeStrike(deck, actor, tokenDoc, tokenId, event, false, chargeDice, spellRank));
                 }
             },
             destroy: {
                 icon: '<i class="fas fa-bomb"></i>',
                 label: "Charge & Destroy",
                 callback: async () => {
-                    await rollNativeStrike(deck, actor, tokenDoc, tokenId, event, true, chargeDice, spellRank);
+                    await guardAction(() => rollNativeStrike(deck, actor, tokenDoc, tokenId, event, true, chargeDice, spellRank));
                 }
             }
         },
@@ -326,7 +327,7 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId
             saveDC: exactDC
         });
 
-        const kamikazeNotice = isKamikaze ? `<p style="color: #ff6b6b; font-weight: bold; text-align: center; margin-bottom: 5px; border: 1px dashed #ff6b6b; padding: 2px;">[Kamikaze Active: Use the 'Dismiss' button on the Command Deck to destroy this thrall when damage is resolved]</p>` : ``;
+        const kamikazeNotice = isKamikaze ? `<p style="color: #ff6b6b; font-weight: bold; text-align: center; margin-bottom: 5px; border: 1px dashed #ff6b6b; padding: 2px;">[Kamikaze Active: This thrall is removed automatically when its Strike resolves]</p>` : ``;
 
         await createNecroCard({
             speaker: ChatMessage.getSpeaker({ actor }),
@@ -361,8 +362,8 @@ export async function executeConglomerateCharge({ deck, actor, tokenDoc, tokenId
         title: "Conglomerate Charge",
         content: `<p>Command <b>${tokenDoc.name}</b> to charge? (Hits ${originalTargets.length} target(s) for an additional <b>+${chargeDice}d6</b> damage each).</p>`,
         buttons: {
-            charge: { icon: '<i class="fas fa-running"></i>', label: "Just Charge", callback: async () => { await executeConglomerate(false); } },
-            destroy: { icon: '<i class="fas fa-bomb"></i>', label: "Charge & Destroy", callback: async () => { await executeConglomerate(true); } },
+            charge: { icon: '<i class="fas fa-running"></i>', label: "Just Charge", callback: async () => { await guardAction(() => executeConglomerate(false)); } },
+            destroy: { icon: '<i class="fas fa-bomb"></i>', label: "Charge & Destroy", callback: async () => { await guardAction(() => executeConglomerate(true)); } },
             cancel: { icon: '<i class="fas fa-times"></i>', label: "Cancel" }
         },
         default: "charge"

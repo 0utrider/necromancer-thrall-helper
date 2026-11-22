@@ -2281,7 +2281,7 @@ Hooks.on("updateChatMessage", async (message, changes, options) => {
         if (!masterId && canvas?.tokens?.controlled?.length > 0) masterId = canvas.tokens.controlled[0].actor?.id;
 
         const casterLevel = game.actors.get(masterId)?.level || 1;
-        const effectData = await getNecroEffect("boneArmor", {}, { spellRank: Math.max(1, Math.ceil(casterLevel / 2)) });
+        const effectData = await getNecroEffect("boneArmor", {}, { spellRank: Math.max(2, Math.ceil(casterLevel / 2)) });
 
         for (const id of Object.keys(targets)) {
             const token = canvas?.tokens?.get(id);
