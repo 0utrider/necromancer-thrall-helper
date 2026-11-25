@@ -136,6 +136,21 @@ function strikeHeader(tokenDoc, item, type) {
     };
 }
 
+// A spell description card (the cast card PF2e posts before the rolls).
+function decorateSpellCard(doc) {
+    const ctx = doc.flags?.pf2e?.context;
+    if (ctx?.type === "attack-roll" || ctx?.type === "damage-roll") return;
+    const flavor = doc.flavor ?? "";
+    if (flavor.includes("nth-fx") || flavor.includes("borrowed-fx")) return;
+    const originUuid = doc.flags?.pf2e?.origin?.uuid;
+    const item = originUuid ? fromUuidSync(originUuid, { strict: false }) : null;
+    if (!item || item.type !== "spell" || !SPELLS.has(item.name)) return;
+    const rawType = Object.values(item.system?.damageRolls ?? {})[0]?.damageType
+        ?? Object.values(item.system?.damage ?? {})[0]?.type ?? null;
+    const type = rawType && CARD_COLORS[rawType] ? rawType : "necro";
+    doc.updateSource({ flavor: `<span class="nth-fx" data-type="${type}" data-kind="card" hidden></span>${flavor}` });
+}
+
 // A card the module posted without a roll (Conglomerate Grab, "Bone Armor Activated!", spawn notes...).
 function decorateNecroCard(doc) {
     if (!doc.flags?.[MODULE]?.card || (doc.flavor ?? "").includes("nth-fx") || (doc.content ?? "").includes("nth-fx")) return;
@@ -144,6 +159,7 @@ function decorateNecroCard(doc) {
 
 function decorateNecroMessage(doc) {
     decorateRollCard(doc);
+    try { decorateSpellCard(doc); } catch (err) { console.warn("Necromancer Thrall Helper | Chat card styling skipped:", err); }
     try { decorateNecroCard(doc); } catch (err) { console.warn("Necromancer Thrall Helper | Chat card styling skipped:", err); }
 }
 
@@ -166,7 +182,7 @@ function decorateRollCard(doc) {
         let type = (ctx.type === "damage-roll" ? doc.rolls[0]?.instances?.[0]?.type : null)
             ?? Object.values(item.system?.damageRolls ?? {})[0]?.damageType
             ?? Object.values(item.system?.damage ?? {})[0]?.type ?? "untyped";
-        if (!CARD_COLORS[type]) type = "untyped";
+        if (!CARD_COLORS[type]) type = isSpell ? "necro" : "untyped";
 
         let head = "", tags = "";
         if (ctx.type === "attack-roll") {
